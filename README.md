@@ -56,9 +56,9 @@ LEARNING_HUB_DIR=C:/path/to/repository/local-learning-hub
 AWS_PROFILE=l2anything
 AWS_REGION=us-east-2
 AWS_LOGIN_COMMAND=
-DEFAULT_PROVIDER=bedrock-converse
+DEFAULT_PROVIDER=bedrock-mantle
 CONVERSE_MODEL_ID=
-MANTLE_MODEL_ID=openai.gpt-5.5
+MANTLE_MODEL_ID=openai.gpt-5.6-sol
 MANTLE_BASE_URL=
 TAVILY_API_KEY=
 PORT=8787
@@ -68,6 +68,9 @@ DB_PATH=C:/path/to/repository/data/l2anything-local.sqlite
 `LEARNING_HUB_DIR` must point to a directory that contains topic folders. Do not point it at the repository root. The `local-learning-hub/` directory, `.env`, and SQLite files are ignored by Git.
 
 `TAVILY_API_KEY` is optional. Without it, the tutor can still use saved resources and direct URL fetching.
+
+The default Bedrock Mantle route uses GPT-5.6 Sol with medium reasoning effort. You can change
+providers or model IDs from **Settings > Advanced model routing**.
 
 ## Run
 
