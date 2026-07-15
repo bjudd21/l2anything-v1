@@ -62,9 +62,9 @@ const settings: SettingsResponse = {
   awsProfile: "learning-dev",
   awsRegion: "us-east-2",
   awsLoginCommand: "bedrock-login",
-  defaultProvider: "bedrock-converse",
+  defaultProvider: "bedrock-mantle",
   converseModelId: null,
-  mantleModelId: "openai.gpt-5.5",
+  mantleModelId: "openai.gpt-5.6-sol",
   mantleBaseUrl: "https://bedrock-mantle.us-east-2.api.aws/openai/v1",
   tavilyConfigured: false
 };
@@ -424,9 +424,9 @@ describe("App", () => {
     expect(html).toContain("Advanced model routing");
     expect(html).not.toContain("Refresh models");
     expect(html).not.toContain("Bedrock model list");
-    expect(html).toContain("Bedrock Converse model");
-    expect(html).toContain("us.anthropic.claude-sonnet-5");
-    expect(html).not.toContain("Bedrock Mantle model");
+    expect(html).toContain("Bedrock Mantle model");
+    expect(html).toContain("openai.gpt-5.6-sol");
+    expect(html).not.toContain("Bedrock Converse model");
     expect(html).toContain("Save advanced settings");
   });
 
@@ -446,7 +446,7 @@ describe("App", () => {
 
     expect(html).toContain("Bedrock Mantle model");
     expect(html).not.toContain("Bedrock Converse model");
-    expect(html).toContain("openai.gpt-5.5");
+    expect(html).toContain("openai.gpt-5.6-sol");
   });
 
   it("shows the fixed Bedrock Converse Sonnet 5 default without a model picker", () => {
@@ -456,7 +456,10 @@ describe("App", () => {
         awsStatus={awsOk}
         onAwsLogin={() => undefined}
         onSaveSettings={() => undefined}
-        settings={settings}
+        settings={{
+          ...settings,
+          defaultProvider: "bedrock-converse"
+        }}
       />
     );
 

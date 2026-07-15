@@ -29,9 +29,9 @@ describe("settings routes", () => {
       awsProfile: "learning-dev",
       awsRegion: "us-east-2",
       awsLoginCommand: null,
-      defaultProvider: "bedrock-converse",
+      defaultProvider: "bedrock-mantle",
       converseModelId: "anthropic.test",
-      mantleModelId: "openai.gpt-5.5"
+      mantleModelId: "openai.gpt-5.6-sol"
     });
   });
 
@@ -44,14 +44,14 @@ describe("settings routes", () => {
       },
       body: JSON.stringify({
         defaultProvider: "bedrock-mantle",
-        mantleModelId: "openai.gpt-5.5-mini"
+        mantleModelId: "openai.custom-model"
       })
     });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       defaultProvider: "bedrock-mantle",
-      mantleModelId: "openai.gpt-5.5-mini"
+      mantleModelId: "openai.custom-model"
     });
   });
 });

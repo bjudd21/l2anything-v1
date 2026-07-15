@@ -10,10 +10,10 @@ const serverEnvSchema = z.object({
   AWS_LOGIN_COMMAND: z.preprocess(emptyToUndefined, z.string().optional()),
   DEFAULT_PROVIDER: z.preprocess(
     emptyToUndefined,
-    z.enum(["bedrock-converse", "bedrock-mantle"]).default("bedrock-converse")
+    z.enum(["bedrock-converse", "bedrock-mantle"]).default("bedrock-mantle")
   ),
   CONVERSE_MODEL_ID: z.preprocess(emptyToUndefined, z.string().default(DEFAULT_CONVERSE_MODEL_ID)),
-  MANTLE_MODEL_ID: z.preprocess(emptyToUndefined, z.string().default("openai.gpt-5.5")),
+  MANTLE_MODEL_ID: z.preprocess(emptyToUndefined, z.string().default("openai.gpt-5.6-sol")),
   MANTLE_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   TAVILY_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().default(8787)),

@@ -139,9 +139,11 @@ export function SettingsPage({
   settings?: SettingsResponse;
 }) {
   const [defaultProvider, setDefaultProvider] = useState<ProviderId>(
-    settings?.defaultProvider ?? "bedrock-converse"
+    settings?.defaultProvider ?? "bedrock-mantle"
   );
-  const [mantleModelId, setMantleModelId] = useState(settings?.mantleModelId ?? "openai.gpt-5.5");
+  const [mantleModelId, setMantleModelId] = useState(
+    settings?.mantleModelId ?? "openai.gpt-5.6-sol"
+  );
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -282,8 +284,8 @@ export function SettingsPage({
           />
           <Badge className="mt-2 sm:hidden">{providerLabel(defaultProvider)}</Badge>
           <p className="mt-2 max-w-3xl text-[13px] leading-6 text-muted-foreground">
-            Bedrock Converse uses Sonnet 5 automatically. Change this only when you intentionally
-            want the Bedrock Mantle endpoint.
+            Bedrock Mantle uses GPT-5.6 Sol with medium reasoning by default. Switch routes here
+            when you intentionally want Bedrock Converse with Sonnet 5.
           </p>
         </summary>
 
@@ -331,7 +333,8 @@ export function SettingsPage({
                   value={mantleModelId}
                 />
                 <p className="text-xs leading-5 text-muted-foreground">
-                  This is a model id, not an API key or secret.
+                  GPT-5.6 Sol requests use medium reasoning effort. This is a model id, not a
+                  secret.
                 </p>
               </div>
             )}

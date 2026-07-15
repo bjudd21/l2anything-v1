@@ -44,6 +44,36 @@ function testRequest(): ChatProviderRequest {
 }
 
 describe("Bedrock Mantle provider", () => {
+  it("requests GPT-5.6 Sol with medium reasoning effort", async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    const client: MantleResponsesClient = {
+      responses: {
+        stream(body) {
+          requestBody = body;
+          return streamFrom([
+            {
+              type: "response.completed",
+              response: {}
+            }
+          ]);
+        }
+      }
+    };
+    const provider = new BedrockMantleProvider({
+      baseUrl: "https://bedrock-mantle.us-east-2.api.aws/openai/v1",
+      client,
+      modelId: "openai.gpt-5.6-sol",
+      region: "us-east-2"
+    });
+
+    await collect(provider.streamChat(testRequest()));
+
+    expect(requestBody).toMatchObject({
+      model: "openai.gpt-5.6-sol",
+      reasoning: { effort: "medium" }
+    });
+  });
+
   it("normalizes text, function calls, usage, and done events", async () => {
     const stream = streamFrom([
       {
@@ -142,7 +172,7 @@ describe("Bedrock Mantle provider", () => {
     const provider = new BedrockMantleProvider({
       baseUrl: "https://bedrock-mantle.us-east-2.api.aws/openai/v1",
       client,
-      modelId: "openai.gpt-5.5",
+      modelId: "openai.gpt-5.6-sol",
       region: "us-east-2",
       tokenCache
     });
@@ -173,7 +203,7 @@ describe("Bedrock Mantle provider", () => {
     const provider = new BedrockMantleProvider({
       baseUrl: "https://bedrock-mantle.us-east-2.api.aws/openai/v1",
       client,
-      modelId: "openai.gpt-5.5",
+      modelId: "openai.gpt-5.6-sol",
       region: "us-east-2",
       tokenCache
     });
