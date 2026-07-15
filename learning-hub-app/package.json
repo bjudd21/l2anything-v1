@@ -1,0 +1,32 @@
+{
+  "name": "learning-hub-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22 <25",
+    "pnpm": ">=11"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --filter @learning-hub/shared build && corepack pnpm -r --parallel --filter @learning-hub/server --filter @learning-hub/web dev",
+    "seed:synthetic-review": "node apps/server/scripts/seed-synthetic-review-state.mjs",
+    "test": "corepack pnpm --filter @learning-hub/shared build && corepack pnpm -r --workspace-concurrency=1 test",
+    "test:ui": "node scripts/ui-regression.mjs",
+    "typecheck": "corepack pnpm --filter @learning-hub/shared build && corepack pnpm -r --workspace-concurrency=1 typecheck",
+    "build": "corepack pnpm -r --workspace-concurrency=1 build",
+    "lint": "eslint .",
+    "format": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^16.0.0",
+    "playwright-core": "^1.61.1",
+    "prettier": "^3.0.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.0.0"
+  }
+}

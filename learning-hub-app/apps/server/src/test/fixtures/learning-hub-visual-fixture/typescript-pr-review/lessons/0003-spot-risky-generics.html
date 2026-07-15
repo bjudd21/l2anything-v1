@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Spot Risky Generics</title>
+  </head>
+  <body>
+    <main>
+      <h1>Spot Risky Generics</h1>
+      <p>
+        A generic should preserve information. If it mostly hides a cast, review it as a risk.
+      </p>
+
+      <section>
+        <h2>Smell: generic in, assertion out</h2>
+        <pre><code class="language-ts">export function parseJson&lt;T&gt;(text: string): T {
+  return JSON.parse(text) as T;
+}
+
+const settings = parseJson&lt;{ retries: number }&gt;(rawSettings);
+settings.retries.toFixed();</code></pre>
+        <p>
+          The caller picks <code>T</code>, so the function does not prove anything about the parsed
+          value. It just makes the assertion reusable.
+        </p>
+      </section>
+
+      <section>
+        <h2>Better review question</h2>
+        <p>
+          Ask whether the code needs a schema, a narrower return type, or a call-site guard. Do not
+          ask for "stronger typing" in the abstract.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>TypeScript PR Review Checklist</title>
+  </head>
+  <body>
+    <main>
+      <h1>TypeScript PR Review Checklist</h1>
+      <section>
+        <h2>Runtime trust</h2>
+        <ul>
+          <li>Where does the value come from?</li>
+          <li>Where is it first trusted?</li>
+          <li>Does a type assertion replace validation?</li>
+        </ul>
+      </section>
+      <section>
+        <h2>Contract drift</h2>
+        <ul>
+          <li>Did optional, null, or undefined semantics change?</li>
+          <li>Do API, database, and UI states still agree?</li>
+          <li>Is a migration or compatibility layer needed?</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Read Runtime First</title>
+  </head>
+  <body>
+    <main>
+      <h1>Read Runtime First</h1>
+      <p>
+        A good TypeScript review starts by asking what values exist at runtime. Types help, but the
+        JavaScript still runs.
+      </p>
+
+      <section>
+        <h2>The review move</h2>
+        <p>
+          When a diff adds a type annotation, look for the runtime source of the value and the place
+          where it is trusted.
+        </p>
+        <pre><code class="language-ts">type UserPayload = {
+  id: string;
+  email: string;
+};
+
+export function toUser(input: unknown): UserPayload {
+  return input as UserPayload;
+}</code></pre>
+        <p>
+          The type assertion silences the compiler, but it does not prove that <code>input</code>
+          has those fields.
+        </p>
+      </section>
+
+      <section>
+        <h2>Review comment pattern</h2>
+        <blockquote>
+          This narrows the TypeScript type without checking the runtime value. Can we validate the
+          incoming payload before returning <code>UserPayload</code>?
+        </blockquote>
+      </section>
+
+      <section>
+        <h2>Exercise</h2>
+        <p>Find the line that creates false confidence, then rewrite the smallest safer version.</p>
+      </section>
+    </main>
+  </body>
+</html>

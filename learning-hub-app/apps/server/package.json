@@ -1,0 +1,34 @@
+{
+  "name": "@learning-hub/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-migrations.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock": "^3.1080.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1080.0",
+    "@aws-sdk/client-sts": "^3.1080.0",
+    "@aws-sdk/credential-provider-node": "^3.972.63",
+    "@aws/bedrock-token-generator": "^1.1.0",
+    "@hono/node-server": "^1.0.0",
+    "@learning-hub/shared": "workspace:*",
+    "better-sqlite3": "^12.11.1",
+    "chokidar": "^5.0.0",
+    "dotenv": "^17.0.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.0.0",
+    "openai": "^6.45.0",
+    "shiki": "^1.24.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "tsx": "^4.0.0"
+  }
+}

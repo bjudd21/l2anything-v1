@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS topic_groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  collapsed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS topic_groups_name_unique
+  ON topic_groups(name);
+
+ALTER TABLE topics
+  ADD COLUMN display_title TEXT;
+
+ALTER TABLE topics
+  ADD COLUMN group_id INTEGER REFERENCES topic_groups(id) ON DELETE SET NULL;
