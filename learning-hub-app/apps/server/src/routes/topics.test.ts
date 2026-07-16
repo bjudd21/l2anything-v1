@@ -5,8 +5,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ChatStreamEvent } from "@learning-hub/shared";
+import { eq } from "drizzle-orm";
 import { createApp } from "../app.js";
 import { loadConfig } from "../config.js";
+import { createSqliteConnection } from "../db/client.js";
+import { reviewItems, topics } from "../db/schema.js";
 import type { ChatProvider, ChatProviderRequest } from "../llm/types.js";
 
 const fixtureRoot = join(
@@ -860,6 +863,96 @@ describe("topics routes", () => {
       topicId,
       items: []
     });
+  });
+
+  it("persists practice ratings and advances rated concepts out of the due queue", async () => {
+    const connection = createSqliteConnection();
+    const app = createApp(testConfig({ LEARNING_HUB_DIR: fixtureRoot }), {
+      database: connection
+    });
+
+    try {
+      await app.request("/api/topics");
+      const topic = connection.db
+        .select()
+        .from(topics)
+        .where(eq(topics.slug, "typescript-basics"))
+        .get();
+      if (!topic) {
+        throw new Error("Fixture topic was not indexed.");
+      }
+
+      const remembered = connection.db
+        .insert(reviewItems)
+        .values({
+          topicId: topic.id,
+          concept: "Narrow before casting",
+          ease: 2.5,
+          intervalDays: 1,
+          dueAt: "2026-01-01T00:00:00.000Z"
+        })
+        .returning()
+        .get();
+      const again = connection.db
+        .insert(reviewItems)
+        .values({
+          topicId: topic.id,
+          concept: "Values exist at runtime",
+          ease: 2.5,
+          intervalDays: 7,
+          dueAt: "2026-01-02T00:00:00.000Z"
+        })
+        .returning()
+        .get();
+
+      const rememberedResponse = await app.request(
+        `/api/topics/${topic.id}/review/${remembered.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ rating: "remembered" }),
+          headers: {
+            "content-type": "application/json"
+          }
+        }
+      );
+      const rememberedBody = (await rememberedResponse.json()) as {
+        item: { dueAt: string; ease: number; intervalDays: number };
+      };
+
+      expect(rememberedResponse.status).toBe(200);
+      expect(rememberedBody.item).toMatchObject({
+        ease: 2.6,
+        intervalDays: 3
+      });
+      expect(Date.parse(rememberedBody.item.dueAt)).toBeGreaterThan(Date.now());
+
+      const againResponse = await app.request(`/api/topics/${topic.id}/review/${again.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ rating: "again" }),
+        headers: {
+          "content-type": "application/json"
+        }
+      });
+      const againBody = (await againResponse.json()) as {
+        item: { dueAt: string; ease: number; intervalDays: number };
+      };
+
+      expect(againResponse.status).toBe(200);
+      expect(againBody.item).toMatchObject({
+        ease: 2.3,
+        intervalDays: 1
+      });
+      expect(Date.parse(againBody.item.dueAt)).toBeGreaterThan(Date.now());
+
+      const review = await app.request(`/api/topics/${topic.id}/review`);
+      await expect(review.json()).resolves.toMatchObject({
+        ok: true,
+        topicId: topic.id,
+        items: []
+      });
+    } finally {
+      connection.sqlite.close();
+    }
   });
 
   it("updates lesson status in SQLite only and preserves it across browsing reads", async () => {

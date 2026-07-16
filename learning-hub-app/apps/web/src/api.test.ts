@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { parseChatSseEvents } from "./api.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseChatSseEvents, rateReviewItem } from "./api.js";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("parseChatSseEvents", () => {
   it("parses normalized chat stream events from SSE text", () => {
@@ -38,5 +42,46 @@ describe("parseChatSseEvents", () => {
         }
       }
     ]);
+  });
+
+  it("sends a validated review rating to the topic review endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          item: {
+            id: 9,
+            topicId: 3,
+            concept: "Narrow before casting",
+            ease: 2.6,
+            intervalDays: 3,
+            dueAt: "2026-07-19T12:00:00.000Z"
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(rateReviewItem(3, 9, { rating: "remembered" })).resolves.toMatchObject({
+      ok: true,
+      item: {
+        id: 9,
+        intervalDays: 3
+      }
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/topics/3/review/9", {
+      method: "PUT",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ rating: "remembered" })
+    });
   });
 });

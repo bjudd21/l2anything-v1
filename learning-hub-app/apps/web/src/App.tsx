@@ -4,6 +4,7 @@ import type {
   LessonStatus,
   Quiz,
   QuizAttemptResponse,
+  ReviewRating,
   SettingsResponse,
   SettingsUpdate,
   SetupUpdate,
@@ -40,6 +41,7 @@ import {
   fetchTopicReview,
   fetchTopics,
   generateTopicQuiz,
+  rateReviewItem,
   runAwsLogin,
   saveSettings,
   saveSetup,
@@ -129,6 +131,7 @@ function Content({
   onGenerateQuiz,
   onLessonTitleChange,
   onSaveSettings,
+  onRateReview,
   onStatusChange,
   onSubmitQuiz,
   onTopicTitleChange,
@@ -167,6 +170,7 @@ function Content({
   onGenerateQuiz: (topicId: number, lessonId?: number) => Promise<Quiz>;
   onLessonTitleChange: (topicId: number, lessonNumber: number, title: string) => Promise<void>;
   onSaveSettings: (update: SettingsUpdate) => void;
+  onRateReview: (topicId: number, reviewItemId: number, rating: ReviewRating) => Promise<void>;
   onStatusChange: (topicId: number, lessonNumber: number, status: LessonStatus) => Promise<void>;
   onSubmitQuiz: (
     topicId: number,
@@ -294,6 +298,7 @@ function Content({
     return (
       <ReviewPage
         loading={contentLoading}
+        onRateReview={onRateReview}
         onTopicTitleChange={onTopicTitleChange}
         review={review}
         route={route}
@@ -393,9 +398,9 @@ export function App({
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(
     initialMobileNavigationOpen ?? browserMobileNavigationOpen()
   );
-  const [lessonGenerations, setLessonGenerations] = useState<
-    Record<number, LessonGenerationState>
-  >({});
+  const [lessonGenerations, setLessonGenerations] = useState<Record<number, LessonGenerationState>>(
+    {}
+  );
   const lessonGenerationRunIds = useRef<Record<number, number>>({});
   const lessonGenerationAbortControllers = useRef<Record<number, AbortController | undefined>>({});
   const [settingsSaveStatus, setSettingsSaveStatus] = useState<
@@ -415,7 +420,7 @@ export function App({
   const activeReference = activeTopicId ? topicReference[activeTopicId] : undefined;
   const activeReview = activeTopicId ? topicReview[activeTopicId] : undefined;
   const activeLessonGeneration = activeTopicId
-    ? lessonGenerations[activeTopicId] ?? idleLessonGeneration
+    ? (lessonGenerations[activeTopicId] ?? idleLessonGeneration)
     : idleLessonGeneration;
 
   const navigate = useCallback((nextPath: string) => {
@@ -739,7 +744,9 @@ export function App({
     setDashboard(nextDashboard);
     setTopicsLoading(false);
     navigate("/");
-    void fetchAwsStatus().then(setAwsStatus).catch(() => undefined);
+    void fetchAwsStatus()
+      .then(setAwsStatus)
+      .catch(() => undefined);
   };
 
   const applyLessonUpdate = (
@@ -961,7 +968,8 @@ export function App({
       setTopicDetails((current) => ({ ...current, [topicId]: nextDetail }));
       setDashboard(nextDashboard);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Lesson due date could not be saved.";
+      const message =
+        error instanceof Error ? error.message : "Lesson due date could not be saved.";
       setContentError(message);
       throw error;
     }
@@ -1120,132 +1128,138 @@ export function App({
       setLessonGenerations
     );
 
-    void streamTopicLessonGeneration(topicId, (streamEvent) => {
-      if (shouldIgnoreStreamUpdate()) {
-        return;
-      }
-
-      if (streamEvent.type === "tool_started") {
-        const activityId = localId(streamEvent.name);
-        activeToolIds.set(streamEvent.name, activityId);
-        updateTopicGeneration(
-          topicId,
-          (current) => ({
-            ...current,
-            activities: [
-              ...current.activities,
-              {
-                id: activityId,
-                label: streamEvent.label,
-                name: streamEvent.name,
-                status: "running"
-              }
-            ]
-          }),
-          setLessonGenerations
-        );
-        return;
-      }
-
-      if (streamEvent.type === "tool_finished") {
-        const activityId = activeToolIds.get(streamEvent.name);
-        updateTopicGeneration(
-          topicId,
-          (current) => ({
-            ...current,
-            activities: activityId
-              ? current.activities.map((activity) =>
-                  activity.id === activityId ? { ...activity, status: "finished" } : activity
-                )
-              : [
-                  ...current.activities,
-                  {
-                    id: localId(streamEvent.name),
-                    label: streamEvent.label,
-                    name: streamEvent.name,
-                    status: "finished"
-                  }
-                ]
-          }),
-          setLessonGenerations
-        );
-        return;
-      }
-
-      if (streamEvent.type === "artifact_created") {
-        if (streamEvent.kind === "lesson") {
-          generatedLessonRef = streamEvent.ref;
+    void streamTopicLessonGeneration(
+      topicId,
+      (streamEvent) => {
+        if (shouldIgnoreStreamUpdate()) {
+          return;
         }
 
-        handleArtifactCreated(topicId, streamEvent);
-        updateTopicGeneration(
-          topicId,
-          (current) => ({
-            ...current,
-            activities: [
-              ...current.activities,
-              {
-                id: localId(streamEvent.kind),
-                label: `${streamEvent.kind} ${streamEvent.ref}`,
-                name: streamEvent.kind,
-                status: "finished"
-              }
-            ],
-            generatedLessonRef:
-              streamEvent.kind === "lesson" ? streamEvent.ref : current.generatedLessonRef
-          }),
-          setLessonGenerations
-        );
-        return;
-      }
-
-      if (streamEvent.type === "error") {
-        updateTopicGeneration(
-          topicId,
-          (current) => ({
-            ...current,
-            error: chatErrorText(streamEvent),
-            needsModelSettings:
-              streamEvent.code === "provider_config" &&
-              streamEvent.message === "Bedrock Converse model is not configured.",
-            status: "error"
-          }),
-          setLessonGenerations
-        );
-        return;
-      }
-
-      if (streamEvent.type === "done") {
-        updateTopicGeneration(
-          topicId,
-          (current) => ({
-            ...current,
-            status: "done"
-          }),
-          setLessonGenerations
-        );
-
-        if (options.openWhenReady && generatedLessonRef) {
-          const topicSlug =
-            options.topicSlug ?? topics?.topics.find((topic) => topic.id === topicId)?.slug;
-
-          if (topicSlug) {
-            void fetchTopicLessons(topicId)
-              .then((nextLessons) => {
-                setTopicLessons((current) => ({ ...current, [topicId]: nextLessons }));
-
-                const generatedLesson = nextLessons.lessons.find(
-                  (lesson) => lesson.fileName === generatedLessonRef
-                );
-                if (generatedLesson) {
-                  navigate(`/t/${encodeURIComponent(topicSlug)}/lessons/${generatedLesson.number}`);
+        if (streamEvent.type === "tool_started") {
+          const activityId = localId(streamEvent.name);
+          activeToolIds.set(streamEvent.name, activityId);
+          updateTopicGeneration(
+            topicId,
+            (current) => ({
+              ...current,
+              activities: [
+                ...current.activities,
+                {
+                  id: activityId,
+                  label: streamEvent.label,
+                  name: streamEvent.name,
+                  status: "running"
                 }
-              })
-              .catch(() => undefined);
+              ]
+            }),
+            setLessonGenerations
+          );
+          return;
+        }
+
+        if (streamEvent.type === "tool_finished") {
+          const activityId = activeToolIds.get(streamEvent.name);
+          updateTopicGeneration(
+            topicId,
+            (current) => ({
+              ...current,
+              activities: activityId
+                ? current.activities.map((activity) =>
+                    activity.id === activityId ? { ...activity, status: "finished" } : activity
+                  )
+                : [
+                    ...current.activities,
+                    {
+                      id: localId(streamEvent.name),
+                      label: streamEvent.label,
+                      name: streamEvent.name,
+                      status: "finished"
+                    }
+                  ]
+            }),
+            setLessonGenerations
+          );
+          return;
+        }
+
+        if (streamEvent.type === "artifact_created") {
+          if (streamEvent.kind === "lesson") {
+            generatedLessonRef = streamEvent.ref;
+          }
+
+          handleArtifactCreated(topicId, streamEvent);
+          updateTopicGeneration(
+            topicId,
+            (current) => ({
+              ...current,
+              activities: [
+                ...current.activities,
+                {
+                  id: localId(streamEvent.kind),
+                  label: `${streamEvent.kind} ${streamEvent.ref}`,
+                  name: streamEvent.kind,
+                  status: "finished"
+                }
+              ],
+              generatedLessonRef:
+                streamEvent.kind === "lesson" ? streamEvent.ref : current.generatedLessonRef
+            }),
+            setLessonGenerations
+          );
+          return;
+        }
+
+        if (streamEvent.type === "error") {
+          updateTopicGeneration(
+            topicId,
+            (current) => ({
+              ...current,
+              error: chatErrorText(streamEvent),
+              needsModelSettings:
+                streamEvent.code === "provider_config" &&
+                streamEvent.message === "Bedrock Converse model is not configured.",
+              status: "error"
+            }),
+            setLessonGenerations
+          );
+          return;
+        }
+
+        if (streamEvent.type === "done") {
+          updateTopicGeneration(
+            topicId,
+            (current) => ({
+              ...current,
+              status: "done"
+            }),
+            setLessonGenerations
+          );
+
+          if (options.openWhenReady && generatedLessonRef) {
+            const topicSlug =
+              options.topicSlug ?? topics?.topics.find((topic) => topic.id === topicId)?.slug;
+
+            if (topicSlug) {
+              void fetchTopicLessons(topicId)
+                .then((nextLessons) => {
+                  setTopicLessons((current) => ({ ...current, [topicId]: nextLessons }));
+
+                  const generatedLesson = nextLessons.lessons.find(
+                    (lesson) => lesson.fileName === generatedLessonRef
+                  );
+                  if (generatedLesson) {
+                    navigate(
+                      `/t/${encodeURIComponent(topicSlug)}/lessons/${generatedLesson.number}`
+                    );
+                  }
+                })
+                .catch(() => undefined);
+            }
           }
         }
-      }
-    }, { signal: abortController.signal })
+      },
+      { signal: abortController.signal }
+    )
       .catch((error) => {
         if (shouldIgnoreStreamUpdate() || (error instanceof Error && error.name === "AbortError")) {
           return;
@@ -1313,6 +1327,43 @@ export function App({
     setTopicReview((current) => ({ ...current, [topicId]: nextReview }));
     setDashboard(nextDashboard);
     return response;
+  };
+
+  const handleReviewRating = async (
+    topicId: number,
+    reviewItemId: number,
+    rating: ReviewRating
+  ) => {
+    await rateReviewItem(topicId, reviewItemId, { rating });
+
+    setTopicReview((current) => {
+      const currentReview = current[topicId];
+      return currentReview
+        ? {
+            ...current,
+            [topicId]: {
+              ...currentReview,
+              items: currentReview.items.filter((item) => item.id !== reviewItemId)
+            }
+          }
+        : current;
+    });
+
+    void Promise.all([
+      fetchTopicReview(topicId),
+      fetchTopics(),
+      fetchTopicDetail(topicId),
+      fetchDashboard()
+    ])
+      .then(([nextReview, nextTopics, nextDetail, nextDashboard]) => {
+        setTopicReview((current) => ({ ...current, [topicId]: nextReview }));
+        setTopics(nextTopics);
+        setTopicDetails((current) => ({ ...current, [topicId]: nextDetail }));
+        setDashboard(nextDashboard);
+      })
+      .catch(() => {
+        // The rating is already persisted; the next shell load will reconcile summary counts.
+      });
   };
 
   if (!settings) {
@@ -1391,6 +1442,7 @@ export function App({
               onLessonDueDateChange={handleLessonDueDateChange}
               onGenerateQuiz={handleGenerateQuiz}
               onLessonTitleChange={handleLessonTitleChange}
+              onRateReview={handleReviewRating}
               onSaveSettings={handleSaveSettings}
               onStatusChange={handleStatusChange}
               onSubmitQuiz={handleSubmitQuiz}

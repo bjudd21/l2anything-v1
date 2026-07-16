@@ -423,6 +423,19 @@ export const reviewItemSchema = z.object({
   dueAt: z.string().min(1)
 });
 
+export const reviewRatingSchema = z.enum(["again", "remembered"]);
+
+export const reviewRatingRequestSchema = z
+  .object({
+    rating: reviewRatingSchema
+  })
+  .strict();
+
+export const reviewRatingResponseSchema = z.object({
+  ok: z.literal(true),
+  item: reviewItemSchema
+});
+
 export const topicReviewResponseSchema = z.object({
   ok: z.literal(true),
   topicId: z.number().int().positive(),
@@ -668,6 +681,9 @@ export type QuizGenerateRequest = z.infer<typeof quizGenerateRequestSchema>;
 export type QuizGenerateResponse = z.infer<typeof quizGenerateResponseSchema>;
 export type QuizQuestion = z.infer<typeof quizQuestionSchema>;
 export type ReviewItem = z.infer<typeof reviewItemSchema>;
+export type ReviewRating = z.infer<typeof reviewRatingSchema>;
+export type ReviewRatingRequest = z.infer<typeof reviewRatingRequestSchema>;
+export type ReviewRatingResponse = z.infer<typeof reviewRatingResponseSchema>;
 export type SettingsResponse = z.infer<typeof settingsResponseSchema>;
 export type SettingsUpdate = z.infer<typeof settingsUpdateSchema>;
 export type SetupUpdate = z.infer<typeof setupUpdateSchema>;
