@@ -5,7 +5,16 @@ import type {
   TopicLessonsResponse,
   TopicSummary
 } from "@learning-hub/shared";
-import { ArrowRight, BookOpen, LoaderCircle, RotateCcw, Trash2, X } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  CalendarDays,
+  LoaderCircle,
+  MoreHorizontal,
+  RotateCcw,
+  Trash2,
+  X
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LessonKnowledgeCheck } from "../components/LessonKnowledgeCheck.js";
 import { LessonDueDateControl } from "../components/LessonDueDateControl.js";
@@ -14,14 +23,18 @@ import { ZapIcon } from "../components/icons.js";
 import { TopicHeader } from "../components/TopicHeader.js";
 import {
   button,
+  Button,
   card,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   InlineNotice,
   LessonStatusPill,
-  LessonStepper,
   PageSkeleton,
   SectionHeader,
   StatusCard,
-  type LessonStage,
   type StatusTone
 } from "../components/ui.js";
 import {
@@ -86,6 +99,7 @@ export function LessonViewPage({
   topic?: TopicSummary;
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
   const [saving, setSaving] = useState(false);
   const [quiz, setQuiz] = useState<Quiz>();
   const [startingQuiz, setStartingQuiz] = useState(false);
@@ -136,7 +150,6 @@ export function LessonViewPage({
 
   const displayStatus: LessonStatus =
     lesson?.status === "unread" ? "in_progress" : (lesson?.status ?? "unread");
-  const stage: LessonStage = displayStatus === "completed" ? "complete" : quiz ? "check" : "learn";
   const nextLesson = lessons?.lessons
     .filter((item) => item.number > lessonNumber)
     .sort((left, right) => left.number - right.number)[0];
@@ -223,61 +236,106 @@ export function LessonViewPage({
                   />
                   <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
                     <LessonStatusPill status={displayStatus} />
-                    <span className="tnum rounded-full border border-border bg-secondary/45 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                      {lessonDueText({ dueAt: lesson.dueAt, status: displayStatus })}
-                    </span>
-                    <span className="min-w-0 truncate rounded-full border border-border bg-secondary/45 px-2 py-0.5 font-mono text-[11px] font-semibold text-muted-foreground">
-                      {lesson.fileName}
-                    </span>
+                    {lesson.dueAt && displayStatus !== "completed" ? (
+                      <span className="tnum rounded-full border border-border bg-secondary/45 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                        {lessonDueText({ dueAt: lesson.dueAt, status: displayStatus })}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5 lg:justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        aria-label="Lesson actions"
+                        disabled={saving}
+                        size="icon-sm"
+                        title="Lesson actions"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <MoreHorizontal size={15} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setConfirmingDelete(false);
+                          setScheduling(true);
+                        }}
+                      >
+                        <CalendarDays size={14} />
+                        {lesson.dueAt ? "Change finish date" : "Set finish date"}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        disabled={saving}
+                        onSelect={() => {
+                          setScheduling(false);
+                          setConfirmingDelete(true);
+                        }}
+                        variant="destructive"
+                      >
+                        <Trash2 size={14} />
+                        Delete lesson
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {scheduling ? (
+                <section className="grid gap-3 border-t border-border pt-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                   <LessonDueDateControl
                     compact
-                    minimal
-                    className="shrink-0"
                     lesson={{ ...lesson, status: displayStatus }}
                     onLessonDueDateChange={onLessonDueDateChange}
                     topicId={topic.id}
                   />
-                  {confirmingDelete ? (
-                    <>
-                      <button
-                        className={`${button.secondary} !h-8 !min-h-8 px-2.5 text-xs`}
-                        disabled={saving}
-                        onClick={() => {
-                          void handleDelete();
-                        }}
-                        type="button"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        aria-label="Cancel delete"
-                        className={`${button.ghost} size-8 px-0`}
-                        disabled={saving}
-                        onClick={() => setConfirmingDelete(false)}
-                        type="button"
-                      >
-                        <X size={13} />
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      aria-label="Delete lesson"
-                      className={`${button.ghost} size-8 px-0 text-danger hover:text-danger`}
+                  <Button
+                    onClick={() => setScheduling(false)}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    Done
+                  </Button>
+                </section>
+              ) : null}
+
+              {confirmingDelete ? (
+                <section className="flex min-w-0 flex-col gap-3 border-t border-danger/20 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Delete this lesson and its local file? This cannot be undone.
+                  </p>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      className="text-danger hover:text-danger"
                       disabled={saving}
-                      onClick={() => setConfirmingDelete(true)}
-                      title="Delete lesson"
+                      onClick={() => {
+                        void handleDelete();
+                      }}
+                      size="sm"
                       type="button"
+                      variant="secondary"
                     >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <LessonStepper current={stage} />
+                      <Trash2 size={14} />
+                      {saving ? "Deleting" : "Delete lesson"}
+                    </Button>
+                    <Button
+                      disabled={saving}
+                      onClick={() => setConfirmingDelete(false)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <X size={14} />
+                      Cancel
+                    </Button>
+                  </div>
+                </section>
+              ) : null}
               {managementError ? (
                 <InlineNotice tone="error" title="Lesson action failed" body={managementError} />
               ) : null}

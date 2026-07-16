@@ -433,6 +433,18 @@ export const dashboardResponseSchema = z.object({
   ok: z.literal(true),
   dueLessonCount: z.number().int().nonnegative(),
   dueReviewCount: z.number().int().nonnegative(),
+  lessonDeadlines: z.array(
+    z.object({
+      id: z.number().int().positive(),
+      topicId: z.number().int().positive(),
+      topicSlug: z.string().min(1),
+      topicTitle: z.string().min(1),
+      number: z.number().int().positive(),
+      title: z.string().min(1),
+      dueAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      href: z.string().min(1)
+    })
+  ),
   recentRecords: z.array(recordSummarySchema),
   topics: z.array(topicSummarySchema),
   nextAction: z.object({
