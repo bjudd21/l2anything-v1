@@ -53,6 +53,8 @@ describe("parseChatSseEvents", () => {
             id: 9,
             topicId: 3,
             concept: "Narrow before casting",
+            answerGuide: null,
+            sourceLesson: null,
             ease: 2.6,
             intervalDays: 3,
             dueAt: "2026-07-19T12:00:00.000Z"

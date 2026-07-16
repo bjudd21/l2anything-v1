@@ -143,6 +143,9 @@ export const reviewItems = sqliteTable("review_items", {
   sourceRecordId: integer("source_record_id").references(() => recordsIndex.id, {
     onDelete: "set null"
   }),
+  sourceQuizId: integer("source_quiz_id").references(() => quizzes.id, {
+    onDelete: "set null"
+  }),
   ease: real("ease").notNull().default(2.5),
   intervalDays: integer("interval_days").notNull().default(1),
   dueAt: text("due_at").notNull()

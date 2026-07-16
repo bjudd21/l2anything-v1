@@ -49,6 +49,12 @@ describe("runMigrations", () => {
       ])
     );
 
+    const reviewColumns = sqlite
+      .prepare("PRAGMA table_info(review_items)")
+      .all()
+      .map((row) => (row as { name: string }).name);
+    expect(reviewColumns).toContain("source_quiz_id");
+
     sqlite.close();
   });
 
@@ -62,7 +68,7 @@ describe("runMigrations", () => {
       count: number;
     };
 
-    expect(migrationCount.count).toBe(4);
+    expect(migrationCount.count).toBe(5);
     sqlite.close();
   });
 });

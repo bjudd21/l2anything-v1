@@ -148,12 +148,7 @@ export function ReviewPage({
                 value={answer}
               />
             </label>
-            {revealed ? (
-              <InlineNotice
-                title="Check your answer"
-                body="Compare your explanation with the lesson or resource that introduced this concept, then rate what you remembered."
-              />
-            ) : null}
+            {revealed ? <PracticeFeedback item={firstItem} topic={topic} /> : null}
             {ratingError ? (
               <InlineNotice body={ratingError} title="Practice wasn't saved" tone="error" />
             ) : null}
@@ -247,6 +242,37 @@ export function ReviewPage({
         ) : null}
       </section>
     </div>
+  );
+}
+
+export function PracticeFeedback({
+  item,
+  topic
+}: {
+  item: TopicReviewResponse["items"][number];
+  topic: TopicSummary;
+}) {
+  return (
+    <section
+      aria-label="Answer guidance"
+      className="grid gap-3 border-y border-border bg-secondary/35 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+    >
+      <div className="min-w-0">
+        <h4 className="text-sm font-semibold text-foreground">What to look for</h4>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+          {item.answerGuide ??
+            "Compare your explanation with the lesson or learning record that introduced this concept."}
+        </p>
+      </div>
+      {item.sourceLesson ? (
+        <Button asChild className="w-full sm:w-auto" variant="secondary">
+          <a href={topicPath(topic, `lessons/${item.sourceLesson.number}`)}>
+            <BookOpen />
+            Open lesson {item.sourceLesson.number}
+          </a>
+        </Button>
+      ) : null}
+    </section>
   );
 }
 

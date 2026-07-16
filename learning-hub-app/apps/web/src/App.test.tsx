@@ -12,6 +12,7 @@ import type {
   TopicsResponse
 } from "@learning-hub/shared";
 import { SettingsPage } from "./pages/Settings.js";
+import { PracticeFeedback } from "./pages/Review.js";
 import { TopicHome } from "./pages/TopicHome.js";
 
 const topics: TopicsResponse = {
@@ -292,6 +293,8 @@ describe("App", () => {
                 id: 1,
                 topicId: 1,
                 concept: "Narrow before casting",
+                answerGuide: null,
+                sourceLesson: null,
                 ease: 2.3,
                 intervalDays: 1,
                 dueAt: "2026-01-01T00:00:00.000Z"
@@ -517,6 +520,12 @@ describe("App", () => {
                 id: 1,
                 topicId: 1,
                 concept: "Narrow before casting",
+                answerGuide: "Narrow the unknown value before using a type assertion.",
+                sourceLesson: {
+                  id: 10,
+                  number: 1,
+                  title: "Values Before Types"
+                },
                 ease: 2.3,
                 intervalDays: 1,
                 dueAt: "2026-01-01T00:00:00.000Z"
@@ -525,6 +534,8 @@ describe("App", () => {
                 id: 2,
                 topicId: 1,
                 concept: "Values exist at runtime",
+                answerGuide: null,
+                sourceLesson: null,
                 ease: 2.7,
                 intervalDays: 7,
                 dueAt: "2026-01-02T00:00:00.000Z"
@@ -540,9 +551,54 @@ describe("App", () => {
     expect(html).toContain("Check answer");
     expect(html).toContain("View queue");
     expect(html).not.toContain("Next concept");
+    expect(html).not.toContain("Narrow the unknown value");
     expect(html).not.toContain("Ease");
     expect(html).not.toContain("interval");
     expect(html).not.toContain("Strength");
+  });
+
+  it("renders grounded Practice feedback and a legacy fallback", () => {
+    const groundedHtml = renderToString(
+      <PracticeFeedback
+        item={{
+          id: 1,
+          topicId: 1,
+          concept: "Narrow before casting",
+          answerGuide: "Narrow the unknown value before using a type assertion.",
+          sourceLesson: {
+            id: 10,
+            number: 1,
+            title: "Values Before Types"
+          },
+          ease: 2.3,
+          intervalDays: 1,
+          dueAt: "2026-01-01T00:00:00.000Z"
+        }}
+        topic={topics.topics[0]!}
+      />
+    );
+    const fallbackHtml = renderToString(
+      <PracticeFeedback
+        item={{
+          id: 2,
+          topicId: 1,
+          concept: "Legacy concept",
+          answerGuide: null,
+          sourceLesson: null,
+          ease: 2.5,
+          intervalDays: 1,
+          dueAt: "2026-01-01T00:00:00.000Z"
+        }}
+        topic={topics.topics[0]!}
+      />
+    );
+
+    expect(groundedHtml).toContain("What to look for");
+    expect(groundedHtml).toContain("Narrow the unknown value");
+    expect(groundedHtml).toContain('href="/t/typescript-basics/lessons/1"');
+    expect(groundedHtml).toContain("Open lesson");
+    expect(fallbackHtml).toContain("Compare your explanation with the lesson");
+    expect(fallbackHtml).not.toContain("Open lesson");
   });
 
   it("shows a loading shell instead of topic-not-found while topic routes load", () => {

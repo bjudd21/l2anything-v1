@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { createApp } from "../app.js";
 import { loadConfig } from "../config.js";
 import { createSqliteConnection } from "../db/client.js";
-import { reviewItems, topics } from "../db/schema.js";
+import { lessonsIndex, quizzes, reviewItems, topics } from "../db/schema.js";
 import type { ChatProvider, ChatProviderRequest } from "../llm/types.js";
 
 const fixtureRoot = join(
@@ -863,6 +863,100 @@ describe("topics routes", () => {
       topicId,
       items: []
     });
+  });
+
+  it("returns answer guidance and source lessons for quiz-created review items", async () => {
+    const connection = createSqliteConnection();
+    const app = createApp(testConfig({ LEARNING_HUB_DIR: fixtureRoot }), {
+      database: connection
+    });
+
+    try {
+      await app.request("/api/topics");
+      const topic = connection.db
+        .select()
+        .from(topics)
+        .where(eq(topics.slug, "typescript-basics"))
+        .get();
+      if (!topic) {
+        throw new Error("Fixture topic was not indexed.");
+      }
+
+      const lesson = connection.db
+        .select()
+        .from(lessonsIndex)
+        .where(eq(lessonsIndex.topicId, topic.id))
+        .all()
+        .sort((left, right) => left.number - right.number)[0];
+      if (!lesson) {
+        throw new Error("Fixture lesson was not indexed.");
+      }
+
+      const quiz = connection.db
+        .insert(quizzes)
+        .values({
+          topicId: topic.id,
+          sourceLessonId: lesson.id,
+          questionsJson: JSON.stringify([
+            {
+              id: "recall",
+              type: "mcq",
+              prompt: "Which move checks understanding?",
+              options: [
+                { id: "read", label: "Read it again" },
+                { id: "explain", label: "Explain it back" }
+              ],
+              answer: "explain",
+              rubric: "Active recall is stronger than passive rereading."
+            }
+          ])
+        })
+        .returning()
+        .get();
+
+      connection.db
+        .insert(reviewItems)
+        .values([
+          {
+            topicId: topic.id,
+            concept: "Which move checks understanding?",
+            sourceQuizId: quiz.id,
+            dueAt: "2026-01-01T00:00:00.000Z"
+          },
+          {
+            topicId: topic.id,
+            concept: "Legacy concept without provenance",
+            dueAt: "2026-01-02T00:00:00.000Z"
+          }
+        ])
+        .run();
+
+      const response = await app.request(`/api/topics/${topic.id}/review`);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: true,
+        topicId: topic.id,
+        items: [
+          {
+            concept: "Which move checks understanding?",
+            answerGuide:
+              "Correct answer: Explain it back. Active recall is stronger than passive rereading.",
+            sourceLesson: {
+              id: lesson.id,
+              number: lesson.number,
+              title: lesson.title
+            }
+          },
+          {
+            concept: "Legacy concept without provenance",
+            answerGuide: null,
+            sourceLesson: null
+          }
+        ]
+      });
+    } finally {
+      connection.sqlite.close();
+    }
   });
 
   it("persists practice ratings and advances rated concepts out of the due queue", async () => {

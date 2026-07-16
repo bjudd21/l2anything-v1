@@ -418,6 +418,14 @@ export const reviewItemSchema = z.object({
   id: z.number().int().positive(),
   topicId: z.number().int().positive(),
   concept: z.string().min(1),
+  answerGuide: z.string().min(1).nullable(),
+  sourceLesson: z
+    .object({
+      id: z.number().int().positive(),
+      number: z.number().int().positive(),
+      title: z.string().min(1)
+    })
+    .nullable(),
   ease: z.number().positive(),
   intervalDays: z.number().int().positive(),
   dueAt: z.string().min(1)

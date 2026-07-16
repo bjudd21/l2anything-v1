@@ -115,9 +115,13 @@ describe("quiz routes", () => {
       expect(
         connection.db.select().from(quizAttempts).where(eq(quizAttempts.quizId, quiz.id)).all()
       ).toHaveLength(1);
-      expect(
-        connection.db.select().from(reviewItems).where(eq(reviewItems.topicId, topic.id)).all()
-      ).toHaveLength(2);
+      const scheduledReviews = connection.db
+        .select()
+        .from(reviewItems)
+        .where(eq(reviewItems.topicId, topic.id))
+        .all();
+      expect(scheduledReviews).toHaveLength(2);
+      expect(scheduledReviews.every((item) => item.sourceQuizId === quiz.id)).toBe(true);
     } finally {
       connection.sqlite.close();
     }

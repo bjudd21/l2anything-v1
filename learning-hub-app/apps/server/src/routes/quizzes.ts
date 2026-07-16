@@ -117,13 +117,18 @@ function gradeMcq(question: Extract<QuizQuestion, { type: "mcq" }>, answer: stri
   };
 }
 
-function upsertReviewItem(db: AppDatabase, topicId: number, concept: string, correct: boolean) {
+function upsertReviewItem(
+  db: AppDatabase,
+  quiz: typeof quizzes.$inferSelect,
+  question: QuizQuestion,
+  correct: boolean
+) {
   const existing = db
     .select()
     .from(reviewItems)
-    .where(eq(reviewItems.topicId, topicId))
+    .where(eq(reviewItems.topicId, quiz.topicId))
     .all()
-    .find((item) => item.concept === concept);
+    .find((item) => item.concept === question.prompt);
   const next = nextReviewSchedule({
     correct,
     ease: existing?.ease,
@@ -131,14 +136,21 @@ function upsertReviewItem(db: AppDatabase, topicId: number, concept: string, cor
   });
 
   if (existing) {
-    db.update(reviewItems).set(next).where(eq(reviewItems.id, existing.id)).run();
+    db.update(reviewItems)
+      .set({
+        ...next,
+        sourceQuizId: quiz.id
+      })
+      .where(eq(reviewItems.id, existing.id))
+      .run();
     return;
   }
 
   db.insert(reviewItems)
     .values({
-      topicId,
-      concept,
+      topicId: quiz.topicId,
+      concept: question.prompt,
+      sourceQuizId: quiz.id,
       ease: next.ease,
       intervalDays: next.intervalDays,
       dueAt: next.dueAt
@@ -187,7 +199,7 @@ export function createQuizRoutes(dependencies: QuizRouteDependencies) {
           : await gradeWithProvider(provider, question, answer);
 
       feedback.push(result);
-      upsertReviewItem(dependencies.db, quiz.topicId, question.prompt, result.correct);
+      upsertReviewItem(dependencies.db, quiz, question, result.correct);
     }
 
     const score = feedback.reduce((total, item) => total + item.score, 0) / feedback.length;
