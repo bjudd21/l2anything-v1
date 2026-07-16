@@ -10,6 +10,7 @@ import {
   lessonTitleUpdateSchema,
   quizGenerateRequestSchema,
   quizGenerateResponseSchema,
+  quizQuestionSchema,
   reviewRatingRequestSchema,
   reviewRatingResponseSchema,
   topicCreateRequestSchema,
@@ -33,6 +34,7 @@ import {
   type ChatUsage,
   type LessonGroup,
   type LessonSummary,
+  type QuizQuestion,
   type RecordSummary,
   type TopicInterviewMessage,
   type TopicGroup,
@@ -792,6 +794,68 @@ async function rawHtmlResponse(html: Buffer, options: RawHtmlResponseOptions = {
 
 function parseQuestionsJson(questionsJson: string) {
   return JSON.parse(questionsJson) as unknown;
+}
+
+function reviewAnswerGuide(question: QuizQuestion) {
+  if (question.type === "mcq") {
+    const answer = question.options.find((option) => option.id === question.answer)?.label;
+    const answerText = answer
+      ? `Correct answer: ${answer}${/[.!?]$/.test(answer) ? "" : "."}`
+      : null;
+    return [answerText, question.rubric].filter((part): part is string => Boolean(part)).join(" ");
+  }
+
+  return question.type === "free_text" ? (question.answer ?? question.rubric) : question.rubric;
+}
+
+function reviewItemResponse(db: AppDatabase, item: typeof reviewItems.$inferSelect) {
+  const sourceQuiz = item.sourceQuizId
+    ? db
+        .select()
+        .from(quizzes)
+        .where(and(eq(quizzes.id, item.sourceQuizId), eq(quizzes.topicId, item.topicId)))
+        .get()
+    : undefined;
+  const sourceLesson = sourceQuiz?.sourceLessonId
+    ? db
+        .select()
+        .from(lessonsIndex)
+        .where(
+          and(
+            eq(lessonsIndex.id, sourceQuiz.sourceLessonId),
+            eq(lessonsIndex.topicId, item.topicId)
+          )
+        )
+        .get()
+    : undefined;
+  let question: QuizQuestion | undefined;
+  if (sourceQuiz) {
+    try {
+      const parsed = quizQuestionSchema.array().safeParse(JSON.parse(sourceQuiz.questionsJson));
+      question = parsed.success
+        ? parsed.data.find((candidate) => candidate.prompt === item.concept)
+        : undefined;
+    } catch {
+      question = undefined;
+    }
+  }
+
+  return {
+    id: item.id,
+    topicId: item.topicId,
+    concept: item.concept,
+    answerGuide: question ? reviewAnswerGuide(question) : null,
+    sourceLesson: sourceLesson
+      ? {
+          id: sourceLesson.id,
+          number: sourceLesson.number,
+          title: sourceLesson.title
+        }
+      : null,
+    ease: item.ease,
+    intervalDays: item.intervalDays,
+    dueAt: item.dueAt
+  };
 }
 
 function cleanNotFound(message: string) {
@@ -2149,7 +2213,8 @@ export function createTopicsRoutes(dependencies: TopicsRouteDependencies) {
       .where(eq(reviewItems.topicId, topic.id))
       .all()
       .filter((item) => Date.parse(item.dueAt) <= Date.now())
-      .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt));
+      .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))
+      .map((item) => reviewItemResponse(dependencies.db, item));
 
     return context.json(
       topicReviewResponseSchema.parse({
@@ -2201,7 +2266,7 @@ export function createTopicsRoutes(dependencies: TopicsRouteDependencies) {
     return context.json(
       reviewRatingResponseSchema.parse({
         ok: true,
-        item
+        item: reviewItemResponse(dependencies.db, item)
       })
     );
   });
