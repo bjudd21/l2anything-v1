@@ -470,18 +470,20 @@ export function GradientCardCta({
   );
 }
 
-/** User-action lesson stepper pattern from docs/design-system.md §7. */
+/** The actual lesson workflow: learn, check understanding, then complete. */
+export type LessonStage = "learn" | "check" | "complete";
+
 export function LessonStepper({
   className,
-  current = "read"
+  current = "learn"
 }: {
   className?: string;
-  current?: "read" | "exercise" | "quiz";
+  current?: LessonStage;
 }) {
-  const steps: Array<{ id: "read" | "exercise" | "quiz"; label: string }> = [
-    { id: "read", label: "Read the lesson" },
-    { id: "exercise", label: "Try the exercise" },
-    { id: "quiz", label: "Take the quiz" }
+  const steps: Array<{ id: LessonStage; label: string }> = [
+    { id: "learn", label: "Learn" },
+    { id: "check", label: "Check understanding" },
+    { id: "complete", label: "Complete" }
   ];
   const currentIndex = steps.findIndex((step) => step.id === current);
 

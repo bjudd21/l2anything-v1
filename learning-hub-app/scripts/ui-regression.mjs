@@ -147,7 +147,82 @@ async function installStubs(page, state) {
     await fulfillJson(route, state.settings);
   });
 
+  await page.route("**/api/topics/groups", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+
+    const requested = route.request().postDataJSON();
+    const nextGroupId =
+      Math.max(9000, ...state.topics.groups.map((group) => group.id)) + 1;
+    const group = {
+      id: nextGroupId,
+      name: requested.name,
+      collapsed: false
+    };
+    state.topics = {
+      ...state.topics,
+      groups: [...state.topics.groups, group]
+    };
+
+    await fulfillJson(route, { ok: true, group });
+  });
+
+  await page.route(/\/api\/topics\/groups\/\d+$/, async (route) => {
+    const groupId = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    const method = route.request().method();
+
+    if (method === "DELETE") {
+      state.topics = {
+        ...state.topics,
+        groups: state.topics.groups.filter((group) => group.id !== groupId),
+        topics: state.topics.topics.map((topic) =>
+          topic.groupId === groupId ? { ...topic, groupId: null } : topic
+        )
+      };
+      await fulfillJson(route, { ok: true, groupId });
+      return;
+    }
+
+    if (method !== "PUT") {
+      await route.continue();
+      return;
+    }
+
+    const requested = route.request().postDataJSON();
+    const currentGroup = state.topics.groups.find((group) => group.id === groupId);
+    assert(currentGroup, `Topic group ${groupId} was not found by the regression stub.`);
+    const group = { ...currentGroup, ...requested };
+    state.topics = {
+      ...state.topics,
+      groups: state.topics.groups.map((item) => (item.id === groupId ? group : item))
+    };
+    await fulfillJson(route, { ok: true, group });
+  });
+
+  await page.route(/\/api\/topics\/\d+\/group$/, async (route) => {
+    const topicId = Number(new URL(route.request().url()).pathname.split("/")[3]);
+    const requested = route.request().postDataJSON();
+    const currentTopic = state.topics.topics.find((topic) => topic.id === topicId);
+    assert(currentTopic, `Topic ${topicId} was not found by the regression stub.`);
+    const topic = { ...currentTopic, groupId: requested.groupId };
+    state.topics = {
+      ...state.topics,
+      topics: state.topics.topics.map((item) => (item.id === topicId ? topic : item))
+    };
+    if (state.lessonTopic.id === topicId) {
+      state.lessonTopic = topic;
+    }
+    await fulfillJson(route, { ok: true, topic });
+  });
+
   await page.route("**/api/topics", async (route) => {
+    if (route.request().method() === "GET") {
+      await fulfillJson(route, state.topics);
+      return;
+    }
+
     if (route.request().method() !== "POST") {
       await route.continue();
       return;
@@ -244,6 +319,29 @@ async function installStubs(page, state) {
             type: "free_text",
             prompt: "Explain the core idea.",
             rubric: "Mentions the main guarantee."
+          }
+        ]
+      }
+    });
+  });
+
+  await page.route(/\/api\/quizzes\/\d+\/attempts$/, async (route) => {
+    const url = new URL(route.request().url());
+    const quizId = Number(url.pathname.split("/")[3]);
+
+    await fulfillJson(route, {
+      ok: true,
+      attempt: {
+        id: 9002,
+        quizId,
+        score: 0.8,
+        createdAt: new Date().toISOString(),
+        feedback: [
+          {
+            questionId: "q1",
+            correct: true,
+            score: 0.8,
+            feedback: "Clear explanation."
           }
         ]
       }
@@ -463,6 +561,19 @@ async function clickSpa(page, locator, label, afterClick) {
   await expectHealthy(page, label);
 }
 
+async function waitForAttribute(locator, name, expected, timeoutMs = 5000) {
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    if ((await locator.getAttribute(name)) === expected) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  throw new Error(`Timed out waiting for ${name}="${expected}".`);
+}
+
 async function step(results, name, fn, page) {
   const started = Date.now();
   try {
@@ -518,6 +629,10 @@ async function runVisualMatrix(browser, state, results) {
               consoleErrors.length = 0;
               await page.goto(`${baseUrl}${route.path}?theme=${theme}`);
               await settle(page);
+              if (route.name === "chat") {
+                await page.getByRole("button", { name: "Ask Tutor" }).click();
+                await page.locator(route.selector).first().waitFor();
+              }
 
               const appliedTheme = await page.evaluate(
                 () => document.documentElement.dataset.theme
@@ -652,6 +767,69 @@ async function runDesktop(browser, state, results) {
 
     await step(
       results,
+      "sidebar topic groups create, organize, rename, collapse, and delete",
+      async () => {
+        await page.goto(baseUrl);
+        await page.getByRole("heading", { name: "Pick up where you left off" }).waitFor();
+        const sidebar = page.locator("aside").first();
+        await sidebar
+          .getByRole("button", { name: `Topic actions for ${lessonTopic.title}` })
+          .waitFor();
+
+        await sidebar.getByRole("button", { name: "Create topic group" }).click();
+        await page.getByLabel("Group name").fill("Regression group");
+        await page.getByRole("button", { exact: true, name: "Create group" }).click();
+        await page.getByRole("dialog").waitFor({ state: "detached" });
+        assert(
+          state.topics.groups.some((group) => group.name === "Regression group"),
+          "The topic-group create request did not reach the regression stub."
+        );
+        const groupToggle = sidebar.getByRole("button", { name: /^Regression group \d+$/ });
+        await groupToggle.waitFor();
+        const sidebarText = await sidebar.innerText();
+        assert(
+          sidebarText.includes("Regression group"),
+          `The created topic group was not rendered: ${sidebarText}`
+        );
+
+        await sidebar
+          .getByRole("button", { name: `Topic actions for ${lessonTopic.title}` })
+          .click();
+        await page.getByRole("menuitemradio", { name: "Regression group" }).click();
+        await groupToggle.waitFor();
+
+        await groupToggle.click();
+        await waitForAttribute(groupToggle, "aria-expanded", "false");
+        await groupToggle.click();
+        await waitForAttribute(groupToggle, "aria-expanded", "true");
+
+        await sidebar.getByRole("button", { name: "Group actions for Regression group" }).click();
+        await page.getByRole("menuitem", { name: "Rename group" }).click();
+        await page.getByLabel("Group name").fill("Regression collection");
+        await page.getByRole("button", { exact: true, name: "Save name" }).click();
+        const renamedGroupToggle = sidebar.getByRole("button", {
+          name: /^Regression collection \d+$/
+        });
+        await renamedGroupToggle.waitFor();
+
+        await sidebar
+          .getByRole("button", { name: "Group actions for Regression collection" })
+          .click();
+        await page.getByRole("menuitem", { name: "Delete group" }).click();
+        await page.getByRole("button", { exact: true, name: "Delete group" }).click();
+        await renamedGroupToggle.waitFor({
+          state: "detached"
+        });
+        await sidebar
+          .getByRole("button", { name: `Topic actions for ${lessonTopic.title}` })
+          .waitFor();
+        await expectHealthy(page, "sidebar topic groups");
+      },
+      page
+    );
+
+    await step(
+      results,
       "command palette opens and navigates without reload",
       async () => {
         await page.getByRole("button", { name: /command palette/i }).click();
@@ -693,9 +871,8 @@ async function runDesktop(browser, state, results) {
         const tabs = [
           ["Lessons", `${topicPath}/lessons`, /\/lessons$/],
           ["Practice", `${topicPath}/review`, /\/review$/],
-          ["Learning notes", `${topicPath}/records`, /\/records$/],
-          ["Resources", `${topicPath}/resources`, /\/resources$/],
-          ["Chat", `${topicPath}/chat`, /\/chat$/],
+          ["Tutor memory", `${topicPath}/records`, /\/records$/],
+          ["Library", `${topicPath}/resources`, /\/resources$/],
           ["Overview", topicPath, new RegExp(`${escapeRegExp(topicPath)}$`)]
         ];
 
@@ -715,14 +892,10 @@ async function runDesktop(browser, state, results) {
 
     await step(
       results,
-      "lesson status select and lesson detail controls work",
+      "lesson knowledge check completes the workflow",
       async () => {
         await page.goto(`${baseUrl}${topicPath}/lessons`);
-        await page.getByRole("heading", { name: "Lessons" }).waitFor();
-        const statusSelect = page.getByLabel("Status").first();
-        if ((await statusSelect.count()) > 0) {
-          await statusSelect.selectOption("completed");
-        }
+        await page.getByRole("heading", { name: "Current lesson" }).waitFor();
         await clickSpa(
           page,
           page.locator(`a[href='${topicPath}/lessons/1']`).first(),
@@ -731,20 +904,12 @@ async function runDesktop(browser, state, results) {
             await page.waitForURL(/\/lessons\/1$/);
           }
         );
-        const completeButton = page.getByTitle("Click to mark complete").first();
-        if ((await completeButton.count()) > 0) {
-          await completeButton.click();
-        }
-        const markCompleteButton = page.getByRole("button", { name: "Mark complete" }).first();
-        if ((await markCompleteButton.count()) > 0) {
-          await markCompleteButton.click();
-        }
-        const quizButton = page.getByRole("button", { name: /Quiz me/i }).first();
-        if ((await quizButton.count()) > 0) {
-          await quizButton.click();
-          await page.waitForURL(/\/review$/);
-          await page.getByRole("heading", { name: "Active recall" }).waitFor();
-        }
+        await page.getByRole("button", { name: "Start knowledge check" }).click();
+        await page.getByRole("heading", { name: "Check your understanding" }).waitFor();
+        await page.getByLabel("Your answer").fill("A concrete explanation from memory.");
+        await page.getByRole("button", { name: "Submit and complete lesson" }).click();
+        await page.getByRole("heading", { name: "Knowledge check complete" }).waitFor();
+        await page.getByText("Progress saved automatically").waitFor();
         await expectHealthy(page, "lesson controls");
       },
       page
@@ -755,9 +920,13 @@ async function runDesktop(browser, state, results) {
       "lesson chat sends via stubbed stream",
       async () => {
         await page.goto(`${baseUrl}${topicPath}/lessons/1`);
+        await page.getByRole("button", { name: "Ask Tutor" }).click();
         await page.getByText("Knows lesson 1 and your topic files.").waitFor();
         await page.getByLabel("Message").fill("Regression chat ping");
         await page.getByRole("button", { name: "Send" }).click();
+        await page.getByText("Regression stub response.").waitFor();
+        await page.getByRole("button", { name: "Close" }).click();
+        await page.getByRole("button", { name: "Ask Tutor" }).click();
         await page.getByText("Regression stub response.").waitFor();
         await expectHealthy(page, "lesson chat");
       },

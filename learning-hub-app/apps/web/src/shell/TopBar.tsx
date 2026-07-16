@@ -10,8 +10,8 @@ const sectionLabels: Record<Route["name"], string> = {
   topic: "Overview",
   "topic-lessons": "Lessons",
   "topic-lesson": "Lesson",
-  "topic-records": "Progress",
-  "topic-resources": "Reference",
+  "topic-records": "Tutor memory",
+  "topic-resources": "Library",
   "topic-review": "Practice",
   "not-found": "Not found"
 };

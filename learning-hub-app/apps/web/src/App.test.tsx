@@ -186,7 +186,7 @@ describe("App", () => {
       />
     );
 
-    expect(html).toContain("Learning Hub");
+    expect(html).toContain("L2Anything");
     expect(html).toContain("Pick up where you left off");
     expect(html).toContain("TypeScript Basics");
     expect(html).toContain("AWS connected");
@@ -208,7 +208,7 @@ describe("App", () => {
     expect(html).not.toContain('aria-label="Delete TypeScript Basics"');
   });
 
-  it("renders the mobile navigation sheet when opened", () => {
+  it("marks the mobile navigation trigger expanded when opened", () => {
     const html = renderToString(
       <App
         initialAwsStatus={awsOk}
@@ -220,9 +220,7 @@ describe("App", () => {
     );
 
     expect(html).toContain('aria-expanded="true"');
-    expect(html).toContain('id="mobile-sidebar-sheet"');
-    expect(html).toContain("Navigation");
-    expect(html).toContain("Close");
+    expect(html).toContain('aria-controls="mobile-sidebar-sheet"');
   });
 
   it("renders active topic selection", () => {
@@ -239,6 +237,8 @@ describe("App", () => {
     expect(html).toContain('aria-current="page"');
     expect(html).toContain("Mission");
     expect(html).toContain("Open lesson 0001");
+    expect(html).not.toContain("Lessons completed");
+    expect(html).not.toContain("of 2 generated");
   });
 
   it("renders topic lesson generation progress from external topic state", () => {
@@ -261,7 +261,6 @@ describe("App", () => {
         lessons={topicLessons}
         loading={false}
         onGenerateLesson={() => undefined}
-        onStatusChange={() => undefined}
         onTopicTitleChange={() => Promise.resolve()}
         route={{ name: "topic", slug: "typescript-basics" }}
         topic={topics.topics[0]}
@@ -284,8 +283,27 @@ describe("App", () => {
     );
 
     expect(html).toContain('aria-label="Topic actions for TypeScript Basics"');
+    expect(html).toContain('aria-label="Add topic to Work"');
+    expect(html).toContain('aria-label="Group actions for Work"');
+    expect(html).toContain("Ungrouped");
     expect(html).not.toContain("<select");
     expect(html).not.toContain("<option");
+
+    const emptyGroupHtml = renderToString(
+      <App
+        initialAwsStatus={awsOk}
+        initialPath="/"
+        initialSettings={settings}
+        initialTopics={{
+          ...topics,
+          groups: [...topics.groups, { id: 2, name: "Personal", collapsed: false }]
+        }}
+      />
+    );
+
+    expect(emptyGroupHtml).toContain("Personal");
+    expect(emptyGroupHtml).toContain("No topics in this group yet.");
+    expect(emptyGroupHtml).toContain('aria-label="Add topic to Personal"');
   });
 
   it("progressively discloses topic tabs as content exists", () => {
@@ -355,8 +373,13 @@ describe("App", () => {
     );
 
     expect(listHtml).toContain("Values Before Types");
-    expect(listHtml).toContain("Not done");
+    expect(listHtml).not.toContain("Mark complete");
+    expect(listHtml).not.toContain("Lesson 1 of");
+    expect(listHtml).not.toContain("0 of 2 complete");
+    expect(listHtml).not.toContain("generated");
     expect(listHtml).not.toContain("Status");
+    expect(listHtml).toContain("Start lesson");
+    expect(listHtml).toContain("Continue lesson");
 
     const lessonHtml = renderToString(
       <App
@@ -372,8 +395,14 @@ describe("App", () => {
     expect(lessonHtml).toContain('sandbox="allow-scripts"');
     expect(lessonHtml).not.toContain("allow-same-origin");
     expect(lessonHtml).toContain("/api/topics/1/lessons/0001-values.html");
-    expect(lessonHtml).toContain("Knows lesson 1 and your topic files.");
-    expect(lessonHtml).toContain("Ask the tutor anything about this topic.");
+    expect(lessonHtml).toContain("Ask Tutor");
+    expect(lessonHtml).not.toContain("Ask the tutor anything about this topic.");
+    expect(lessonHtml).toContain("Start knowledge check");
+    expect(lessonHtml).toContain("Check understanding");
+    expect(lessonHtml).toContain("Complete");
+    expect(lessonHtml).not.toContain("Finish this lesson");
+    expect(lessonHtml).not.toContain("Try the exercise");
+    expect(lessonHtml).not.toContain("Mark complete");
   });
 
   it("renders records, resources, and references", () => {
@@ -388,8 +417,10 @@ describe("App", () => {
       />
     );
 
-    expect(recordsHtml).toContain("Learning records");
+    expect(recordsHtml).toContain("Tutor memory");
+    expect(recordsHtml).toContain("Used for future lessons");
     expect(recordsHtml).toContain("Values are the runtime floor");
+    expect(recordsHtml).not.toContain("0001-values.md");
 
     const resourcesHtml = renderToString(
       <App
@@ -402,8 +433,10 @@ describe("App", () => {
       />
     );
 
-    expect(resourcesHtml).toContain("TypeScript Handbook");
     expect(resourcesHtml).toContain("TypeScript Glossary");
+    expect(resourcesHtml).toContain("Study library");
+    expect(resourcesHtml).toContain("View sources");
+    expect(resourcesHtml).not.toContain(">Preview<");
     expect(resourcesHtml).toContain('sandbox="allow-scripts"');
   });
 

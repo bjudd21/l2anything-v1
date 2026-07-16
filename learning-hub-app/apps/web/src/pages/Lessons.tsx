@@ -1,16 +1,11 @@
-import type {
-  LessonStatus,
-  LessonSummary,
-  TopicLessonsResponse,
-  TopicSummary
-} from "@learning-hub/shared";
+import type { LessonSummary, TopicLessonsResponse, TopicSummary } from "@learning-hub/shared";
 import { BookOpen, Pencil, Play, Save, Trash2, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { LessonCompletionControl } from "../components/LessonCompletionControl.js";
 import { LessonDueDateControl } from "../components/LessonDueDateControl.js";
 import { TopicHeader } from "../components/TopicHeader.js";
 import {
   button,
+  Button,
   card,
   field,
   InlineNotice,
@@ -31,21 +26,13 @@ function orderedLessonList(lessons: LessonSummary[]) {
 function currentLessonFrom(lessons: LessonSummary[]) {
   const orderedLessons = orderedLessonList(lessons);
   return (
-    orderedLessons.find((lesson) => lesson.status !== "completed") ??
-    orderedLessons[orderedLessons.length - 1]
+    orderedLessons.find((lesson) => lesson.status === "in_progress") ??
+    orderedLessons.find((lesson) => lesson.status === "unread")
   );
 }
 
-function lessonStepFor(lesson: LessonSummary): "read" | "exercise" | "quiz" {
-  if (lesson.status === "completed") {
-    return "quiz";
-  }
-
-  if (lesson.status === "in_progress") {
-    return "exercise";
-  }
-
-  return "read";
+function lessonStepFor(lesson: LessonSummary): "learn" | "complete" {
+  return lesson.status === "completed" ? "complete" : "learn";
 }
 
 function lessonTone(lesson: LessonSummary): StatusTone {
@@ -78,7 +65,6 @@ export function LessonListPage({
   onDeleteLesson,
   onLessonDueDateChange,
   onLessonTitleChange,
-  onStatusChange,
   onTopicTitleChange,
   route,
   topic
@@ -92,23 +78,23 @@ export function LessonListPage({
     dueAt: string | null
   ) => Promise<void>;
   onLessonTitleChange: (topicId: number, lessonNumber: number, title: string) => Promise<void>;
-  onStatusChange: (topicId: number, lessonNumber: number, status: LessonStatus) => void;
   onTopicTitleChange: (topicId: number, title: string) => Promise<void>;
   route: Route;
   topic?: TopicSummary;
 }) {
   if (!topic) {
     return (
-      <InlineNotice tone="error" title="Topic not found" body="The requested topic is not indexed." />
+      <InlineNotice
+        tone="error"
+        title="Topic not found"
+        body="The requested topic is not indexed."
+      />
     );
   }
 
   const orderedLessons = orderedLessonList(lessons?.lessons ?? []);
-  const total = lessons?.lessons.length ?? topic.lessonCount;
-  const completed =
-    lessons?.lessons.filter((lesson) => lesson.status === "completed").length ??
-    topic.completedLessonCount;
   const currentLesson = currentLessonFrom(orderedLessons);
+  const showLessonList = orderedLessons.length > 1 || !currentLesson;
 
   return (
     <div className="grid w-full min-w-0 max-w-[1400px] gap-6">
@@ -118,47 +104,46 @@ export function LessonListPage({
       ) : (
         <>
           {currentLesson ? (
-            <CurrentLessonPanel lesson={currentLesson} topic={topic} total={total} />
+            <CurrentLessonPanel lesson={currentLesson} topic={topic} />
           ) : null}
 
-          <section className={`${card} p-5`}>
-            <SectionHeader
-              count={`${completed}/${total}`}
-              icon={<BookOpen size={16} />}
-              meta="completed"
-              title="All lessons"
-              tone="neutral"
-            />
+          {showLessonList ? (
+            <section className={`${card} p-5`}>
+              <SectionHeader
+                icon={<BookOpen size={16} />}
+                title={currentLesson ? "All lessons" : "Lesson history"}
+                tone="neutral"
+              />
 
-            <div className="mt-5 grid gap-3">
-              {orderedLessons.length ? (
-                orderedLessons.map((lesson) => (
-                  <LessonRow
-                    key={lesson.id}
-                    lesson={lesson}
-                    onDeleteLesson={onDeleteLesson}
-                    onLessonDueDateChange={onLessonDueDateChange}
-                    onLessonTitleChange={onLessonTitleChange}
-                    onStatusChange={onStatusChange}
-                    topic={topic}
-                  />
-                ))
-              ) : (
-                <div className="grid gap-3">
-                  <InlineNotice
-                    title="No lessons yet"
-                    body="Generate the first lesson from the topic overview, or drop lesson files into the topic folder."
-                  />
-                  <div>
-                    <a className={button.primary} href={topicPath(topic)}>
-                      <Play size={14} />
-                      Open topic overview
-                    </a>
+              <div className="mt-5 grid gap-3">
+                {orderedLessons.length ? (
+                  orderedLessons.map((lesson) => (
+                    <LessonRow
+                      key={lesson.id}
+                      lesson={lesson}
+                      onDeleteLesson={onDeleteLesson}
+                      onLessonDueDateChange={onLessonDueDateChange}
+                      onLessonTitleChange={onLessonTitleChange}
+                      topic={topic}
+                    />
+                  ))
+                ) : (
+                  <div className="grid gap-3">
+                    <InlineNotice
+                      title="No lessons yet"
+                      body="Generate the first lesson from the topic overview, or drop lesson files into the topic folder."
+                    />
+                    <div>
+                      <a className={button.primary} href={topicPath(topic)}>
+                        <Play size={14} />
+                        Open topic overview
+                      </a>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </section>
+                )}
+              </div>
+            </section>
+          ) : null}
         </>
       )}
     </div>
@@ -167,19 +152,16 @@ export function LessonListPage({
 
 function CurrentLessonPanel({
   lesson,
-  topic,
-  total
+  topic
 }: {
   lesson: LessonSummary;
   topic: TopicSummary;
-  total: number;
 }) {
   return (
     <StatusCard className="grid gap-4 p-5" tone={lessonTone(lesson)}>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div className="min-w-0">
           <SectionHeader
-            count={`Lesson ${lesson.number} of ${total || lesson.number}`}
             icon={<Play size={16} />}
             title="Current lesson"
             tone={lesson.status === "in_progress" ? "accent" : "neutral"}
@@ -193,14 +175,14 @@ function CurrentLessonPanel({
           <h2 className="mt-3 min-w-0 break-words text-lg font-bold leading-tight text-foreground">
             {lesson.title}
           </h2>
-          <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-            {lesson.fileName}
-          </p>
+          <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{lesson.fileName}</p>
         </div>
-        <a className={`${button.primary} w-full sm:w-auto`} href={lessonRoute(topic, lesson)}>
-          <Play size={14} />
-          {primaryLessonLabel(lesson)}
-        </a>
+        <Button asChild className="w-full sm:w-auto">
+          <a href={lessonRoute(topic, lesson)}>
+            <Play size={14} />
+            {primaryLessonLabel(lesson)}
+          </a>
+        </Button>
       </div>
       <LessonStepper current={lessonStepFor(lesson)} />
     </StatusCard>
@@ -212,7 +194,6 @@ function LessonRow({
   onDeleteLesson,
   onLessonDueDateChange,
   onLessonTitleChange,
-  onStatusChange,
   topic
 }: {
   lesson: LessonSummary;
@@ -223,7 +204,6 @@ function LessonRow({
     dueAt: string | null
   ) => Promise<void>;
   onLessonTitleChange: (topicId: number, lessonNumber: number, title: string) => Promise<void>;
-  onStatusChange: (topicId: number, lessonNumber: number, status: LessonStatus) => void;
   topic: TopicSummary;
 }) {
   const [editing, setEditing] = useState(false);
@@ -343,16 +323,17 @@ function LessonRow({
         <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
           {!editing ? (
             <>
+              <Button asChild size="sm" variant="secondary">
+                <a href={lessonRoute(topic, lesson)}>
+                  {lesson.status === "completed" ? <BookOpen size={14} /> : <Play size={14} />}
+                  {primaryLessonLabel(lesson)}
+                </a>
+              </Button>
               <LessonDueDateControl
                 compact
                 minimal
                 lesson={lesson}
                 onLessonDueDateChange={onLessonDueDateChange}
-                topicId={topic.id}
-              />
-              <LessonCompletionControl
-                lesson={lesson}
-                onStatusChange={onStatusChange}
                 topicId={topic.id}
               />
             </>

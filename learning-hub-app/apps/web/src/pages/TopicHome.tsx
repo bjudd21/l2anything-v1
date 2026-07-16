@@ -1,13 +1,11 @@
 import type {
   AwsStatusResponse,
-  LessonStatus,
   TopicDetailResponse,
   TopicLessonsResponse,
   TopicSummary
 } from "@learning-hub/shared";
 import { GenerationProgress } from "../components/GenerationProgress.js";
 import { FileTextIcon, PlayIcon, SparklesIcon } from "../components/icons.js";
-import { LessonCompletionControl } from "../components/LessonCompletionControl.js";
 import { MarkdownView } from "../components/markdown.js";
 import { TopicHeader } from "../components/TopicHeader.js";
 import {
@@ -17,7 +15,6 @@ import {
   LessonStepper,
   PageSkeleton,
   SectionHeader,
-  Stat,
   StatusCard
 } from "../components/ui.js";
 import { type LessonGenerationState, topicPath, type Route } from "../lib.js";
@@ -29,7 +26,6 @@ export function TopicHome({
   lessons,
   loading,
   onGenerateLesson,
-  onStatusChange,
   onTopicTitleChange,
   route,
   topic
@@ -40,7 +36,6 @@ export function TopicHome({
   lessons?: TopicLessonsResponse;
   loading: boolean;
   onGenerateLesson: (topicId: number) => void;
-  onStatusChange: (topicId: number, lessonNumber: number, status: LessonStatus) => void;
   onTopicTitleChange: (topicId: number, title: string) => Promise<void>;
   route: Route;
   topic?: TopicSummary;
@@ -123,22 +118,6 @@ export function TopicHome({
               empty="No mission file is available for this topic."
             />
           </div>
-          <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4">
-            <Stat
-              label="Lessons completed"
-              value={
-                <span className="inline-flex items-baseline gap-1">
-                  <span className="tnum">{completedLessonCount}</span>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    of {lessonCount} generated
-                  </span>
-                </span>
-              }
-            />
-            <Stat label="Learning records" value={detail?.counts.records ?? topic.recordCount} />
-            <Stat label="Sources" value={detail?.counts.resources ?? topic.resourceCount} />
-            <Stat label="References" value={detail?.counts.references ?? 0} />
-          </dl>
         </div>
 
         <StatusCard className="grid content-start gap-4 p-5" tone="accent">
@@ -181,14 +160,7 @@ export function TopicHome({
                     {currentLesson.fileName}
                   </p>
                 </div>
-                <LessonStepper current={currentLesson.status === "completed" ? "quiz" : "read"} />
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <LessonCompletionControl
-                    lesson={currentLesson}
-                    onStatusChange={onStatusChange}
-                    topicId={topic.id}
-                  />
-                </div>
+                <LessonStepper current="learn" />
               </section>
             ) : null}
             {lessonGeneration.error ? (
@@ -221,7 +193,7 @@ export function TopicHome({
         <SectionHeader
           count={detail?.recentRecords.length ?? 0}
           icon={<FileTextIcon size={16} />}
-          title="Recent learning records"
+          title="Recent tutor memory"
           tone="neutral"
         />
         {detail?.recentRecords.length ? (
@@ -242,7 +214,7 @@ export function TopicHome({
           </div>
         ) : (
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            No learning records yet. They appear as the tutor captures what changed in your
+            No tutor memory yet. It appears as the tutor captures what changed in your
             understanding.
           </p>
         )}

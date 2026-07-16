@@ -190,11 +190,13 @@ function EmptyConversation({ compact, lesson }: { compact: boolean; lesson?: Les
 }
 
 export function ChatSurface({
+  active = true,
   compact = false,
   lesson,
   onArtifactCreated,
   topic
 }: {
+  active?: boolean;
   compact?: boolean;
   lesson?: LessonSummary;
   onArtifactCreated?: (event: ArtifactCreatedEvent) => void;
@@ -255,7 +257,7 @@ export function ChatSurface({
   }, [activities, messages, sending]);
 
   useEffect(() => {
-    if (sending) {
+    if (!active || sending) {
       return undefined;
     }
 
@@ -264,7 +266,7 @@ export function ChatSurface({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [lesson?.id, sending, topic.id]);
+  }, [active, lesson?.id, sending, topic.id]);
 
   useEffect(() => {
     const textarea = textareaRef.current;

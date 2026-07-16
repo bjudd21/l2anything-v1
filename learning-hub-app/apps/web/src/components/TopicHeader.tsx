@@ -1,13 +1,7 @@
 import type { TopicSummary } from "@learning-hub/shared";
 import { Pencil, Save, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
-import {
-  BookOpenIcon,
-  FileTextIcon,
-  HomeIcon,
-  LibraryIcon,
-  ZapIcon
-} from "./icons.js";
+import { BookOpenIcon, FileTextIcon, HomeIcon, LibraryIcon, ZapIcon } from "./icons.js";
 import { button, DueBadge, field, Input, StatusPill } from "./ui.js";
 import { topicPath, type Route } from "../lib.js";
 
@@ -61,7 +55,7 @@ export function TopicHeader({
 
   return (
     <header className="grid min-w-0 max-w-full gap-3">
-      <div className="flex min-w-0 items-center justify-between gap-4">
+      <div className="flex min-w-0 items-center gap-4">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase text-muted-foreground">Topic</p>
           {editingTitle ? (
@@ -129,35 +123,9 @@ export function TopicHeader({
           </div>
           {titleError ? <p className="mt-2 text-sm font-medium text-danger">{titleError}</p> : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {topic.lessonCount ? <TopicDepthBadge topic={topic} /> : null}
-        </div>
       </div>
       <TopicNav route={route} topic={topic} />
     </header>
-  );
-}
-
-function TopicDepthBadge({ topic }: { topic: TopicSummary }) {
-  const hasCompletedLessons = topic.completedLessonCount > 0;
-
-  return (
-    <div
-      aria-label={`${topic.completedLessonCount} completed lessons out of ${topic.lessonCount} generated lessons`}
-      className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold ${
-        hasCompletedLessons
-          ? "border-primary/35 bg-primary-soft/55 text-primary-strong"
-          : "border-border bg-card/45 text-muted-foreground"
-      }`}
-      title={`${topic.completedLessonCount} completed, ${topic.lessonCount} generated`}
-    >
-      <span className="tnum text-sm font-bold text-foreground">{topic.completedLessonCount}</span>
-      <span>done</span>
-      <span aria-hidden="true" className="text-border">
-        /
-      </span>
-      <span className="tnum text-muted-foreground">{topic.lessonCount} generated</span>
-    </div>
   );
 }
 
@@ -167,7 +135,7 @@ function isTabActive(route: Route, name: string) {
 
 export function TopicNav({ route, topic }: { route: Route; topic: TopicSummary }) {
   // Progressive disclosure, ordered by the teach-skill learning flow:
-  // mission (Overview) -> lessons -> practice -> learning records -> resources.
+  // mission (Overview) -> lessons -> practice -> tutor memory -> resources.
   // Tutor chat lives beside lesson content so questions stay tied to the active lesson.
   const items = [
     { label: "Overview", name: "topic", href: topicPath(topic), icon: HomeIcon, show: true },
@@ -186,14 +154,14 @@ export function TopicNav({ route, topic }: { route: Route; topic: TopicSummary }
       show: topic.reviewItemCount > 0
     },
     {
-      label: "Progress",
+      label: "Tutor memory",
       name: "topic-records",
       href: topicPath(topic, "records"),
       icon: FileTextIcon,
       show: topic.recordCount > 0
     },
     {
-      label: "Reference",
+      label: "Library",
       name: "topic-resources",
       href: topicPath(topic, "resources"),
       icon: LibraryIcon,

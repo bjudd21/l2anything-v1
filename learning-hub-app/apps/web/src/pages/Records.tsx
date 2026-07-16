@@ -1,5 +1,5 @@
 import type { TopicRecordsResponse, TopicSummary } from "@learning-hub/shared";
-import { BookOpen, FileText } from "lucide-react";
+import { BookOpen, Brain } from "lucide-react";
 import { MarkdownView } from "../components/markdown.js";
 import { TopicHeader } from "../components/TopicHeader.js";
 import {
@@ -41,48 +41,45 @@ export function RecordsPage({
       <TopicHeader onTopicTitleChange={onTopicTitleChange} route={route} topic={topic} />
       <section className="grid gap-4">
         <SectionHeader
-          count={records?.records.length ?? topic.recordCount}
-          icon={<FileText size={16} />}
-          title="Learning records"
+          icon={<Brain size={16} />}
+          title="Tutor memory"
           tone="neutral"
         />
         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-          Durable records the tutor keeps as you learn. They help the next lesson start from what
-          you actually know.
+          What you already know, where you got stuck, and what should shape your next lesson.
         </p>
         {loading && !records ? <PageSkeleton /> : null}
         {records?.records.length ? (
           <div className="grid gap-4">
             {records.records.map((record) => (
               <article className={`${card} p-5`} key={record.id}>
-                <div className="mb-4 grid gap-3 border-b border-border pb-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                <div className="mb-4 border-b border-border pb-3">
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <Badge className="rounded-full normal-case">
-                        Learning record <span className="tnum">#{record.number}</span>
-                      </Badge>
+                      <Badge className="rounded-full normal-case">Used for future lessons</Badge>
                     </div>
-                    <h2 className="mt-2 truncate text-base font-bold text-foreground">
+                    <h2 className="mt-2 text-lg font-bold text-foreground">
                       {record.title}
                     </h2>
                   </div>
-                  <span className="truncate font-mono text-xs text-muted-foreground">
-                    {record.fileName}
-                  </span>
                 </div>
-                <MarkdownView content={record.content} empty="This record is empty." />
+                <MarkdownView
+                  content={record.content}
+                  empty="This memory is empty."
+                  omitFirstHeading
+                />
               </article>
             ))}
           </div>
         ) : !loading ? (
           <StatusCard className="grid justify-items-center gap-3 px-6 py-10 text-center" tone="neutral">
             <div className="grid size-10 place-items-center rounded-md border border-primary/25 bg-primary-soft/55 text-primary">
-              <FileText size={18} />
+              <Brain size={18} />
             </div>
-            <h2 className="text-base font-bold text-foreground">No learning records yet</h2>
+            <h2 className="text-base font-bold text-foreground">No tutor memory yet</h2>
             <p className="max-w-md text-sm leading-6 text-muted-foreground">
-              Learning records appear after the tutor captures durable learning insights from a
-              lesson or chat.
+              Demonstrated strengths, gaps, and learning preferences will appear here as they
+              emerge.
             </p>
             <a className={button.primary} href={topicPath(topic, "lessons")}>
               <BookOpen size={14} />

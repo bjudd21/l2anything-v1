@@ -17,6 +17,8 @@ import {
   lessonDueDateUpdateSchema,
   lessonStatusResponseSchema,
   lessonTitleUpdateSchema,
+  quizAttemptRequestSchema,
+  quizAttemptResponseSchema,
   quizGenerateRequestSchema,
   quizGenerateResponseSchema,
   settingsResponseSchema,
@@ -27,6 +29,7 @@ import {
   topicReviewResponseSchema,
   topicGroupAssignSchema,
   topicGroupCreateSchema,
+  topicGroupDeleteResponseSchema,
   topicGroupResponseSchema,
   topicGroupUpdateSchema,
   topicDetailResponseSchema,
@@ -55,6 +58,8 @@ import {
   type LessonStatus,
   type LessonStatusResponse,
   type LessonTitleUpdate,
+  type QuizAttemptRequest,
+  type QuizAttemptResponse,
   type QuizGenerateRequest,
   type QuizGenerateResponse,
   type SettingsResponse,
@@ -65,6 +70,7 @@ import {
   type TopicDeleteResponse,
   type TopicGroupAssign,
   type TopicGroupCreate,
+  type TopicGroupDeleteResponse,
   type TopicGroupResponse,
   type TopicGroupUpdate,
   type TopicLessonsResponse,
@@ -197,6 +203,23 @@ export function updateTopicGroup(
     topicGroupUpdateSchema.parse(request),
     topicGroupResponseSchema
   );
+}
+
+export function deleteTopicGroup(groupId: number): Promise<TopicGroupDeleteResponse> {
+  const path = `/api/topics/groups/${groupId}`;
+
+  return fetch(path, {
+    method: "DELETE",
+    headers: {
+      accept: "application/json"
+    }
+  }).then(async (response) => {
+    if (!response.ok) {
+      throw await responseError(response, path);
+    }
+
+    return topicGroupDeleteResponseSchema.parse(await response.json());
+  });
 }
 
 export function updateTopicTitle(
@@ -502,6 +525,17 @@ export function generateTopicQuiz(
     `/api/topics/${topicId}/quizzes/generate`,
     quizGenerateRequestSchema.parse(request),
     quizGenerateResponseSchema
+  );
+}
+
+export function submitQuizAttempt(
+  quizId: number,
+  request: QuizAttemptRequest
+): Promise<QuizAttemptResponse> {
+  return postJson(
+    `/api/quizzes/${quizId}/attempts`,
+    quizAttemptRequestSchema.parse(request),
+    quizAttemptResponseSchema
   );
 }
 

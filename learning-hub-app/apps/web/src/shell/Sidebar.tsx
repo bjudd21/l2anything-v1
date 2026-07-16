@@ -17,6 +17,25 @@ import {
   X
 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle
+} from "@/components/ui/sheet";
 import {
   GraduationCapIcon,
   HomeIcon,
@@ -32,10 +51,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from "../components/ui.js";
 import { awsStatusText, formatStudiedAt, routeSlug, topicPath, type Route } from "../lib.js";
@@ -55,8 +73,10 @@ export interface SidebarProps {
   onCommandOpen: () => void;
   onCreateTopicGroup: (name: string) => Promise<void>;
   onDeleteTopic: (topicId: number, slug: string) => Promise<void>;
+  onDeleteTopicGroup: (groupId: number) => Promise<void>;
   onTopicGroupChange: (topicId: number, groupId: number | null) => Promise<void>;
   onTopicGroupCollapseChange: (groupId: number, collapsed: boolean) => Promise<void>;
+  onTopicGroupRename: (groupId: number, name: string) => Promise<void>;
   onTopicTitleChange: (topicId: number, title: string) => Promise<void>;
   route: Route;
   topics?: TopicsResponse;
@@ -71,7 +91,7 @@ const sidebarField =
 
 function iconButtonClass(active = false) {
   return [
-    `grid size-7 shrink-0 place-items-center rounded-md border active:translate-y-px ${sidebarFocus}`,
+    `grid size-7 shrink-0 place-items-center rounded-md border active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 ${sidebarFocus}`,
     active
       ? "border-sidebar-border bg-sidebar-accent/70 text-sidebar-foreground"
       : "border-transparent text-sidebar-muted hover:border-sidebar-border hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
@@ -105,16 +125,29 @@ function SidebarSkeleton() {
   );
 }
 
-function TopicGroupForm({
-  onCancel,
-  onCreateTopicGroup
+function TopicGroupEditorDialog({
+  initialName = "",
+  mode,
+  onOpenChange,
+  onSubmit,
+  open
 }: {
-  onCancel: () => void;
-  onCreateTopicGroup: (name: string) => Promise<void>;
+  initialName?: string;
+  mode: "create" | "rename";
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (name: string) => Promise<void>;
+  open: boolean;
 }) {
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialName);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (open) {
+      setName(initialName);
+      setError(undefined);
+    }
+  }, [initialName, open]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -128,12 +161,13 @@ function TopicGroupForm({
     setError(undefined);
 
     try {
-      await onCreateTopicGroup(nextName);
-      setName("");
-      onCancel();
+      await onSubmit(nextName);
+      onOpenChange(false);
     } catch (createError) {
       setError(
-        createError instanceof Error ? createError.message : "Topic group could not be created."
+        createError instanceof Error
+          ? createError.message
+          : `Topic group could not be ${mode === "create" ? "created" : "renamed"}.`
       );
     } finally {
       setSaving(false);
@@ -141,43 +175,141 @@ function TopicGroupForm({
   };
 
   return (
-    <form
-      className="grid gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/25 p-2"
-      onSubmit={(event) => {
-        void handleSubmit(event);
+    <Dialog
+      onOpenChange={(nextOpen) => {
+        if (!saving) {
+          onOpenChange(nextOpen);
+        }
       }}
+      open={open}
     >
-      <label>
-        <span className="sr-only">Topic group name</span>
-        <input
-          autoFocus
-          className={sidebarField}
-          onChange={(event) => setName(event.currentTarget.value)}
-          placeholder="Group name"
-          value={name}
-        />
-      </label>
-      <div className="flex items-center justify-end gap-1.5">
-        <button
-          aria-label="Save topic group"
-          className={iconButtonClass(true)}
-          disabled={saving || !name.trim()}
-          type="submit"
+      <DialogContent className="sm:max-w-md">
+        <form
+          className="grid gap-5"
+          onSubmit={(event) => {
+            void handleSubmit(event);
+          }}
         >
-          <Save size={13} />
-        </button>
-        <button
-          aria-label="Cancel topic group"
-          className={iconButtonClass()}
-          disabled={saving}
-          onClick={onCancel}
-          type="button"
-        >
-          <X size={13} />
-        </button>
-      </div>
-      {error ? <p className="text-xs font-medium text-danger">{error}</p> : null}
-    </form>
+          <DialogHeader>
+            <DialogTitle>{mode === "create" ? "Create topic group" : "Rename group"}</DialogTitle>
+            <DialogDescription>
+              {mode === "create"
+                ? "Create an optional section for organizing related topics."
+                : "Choose a clear name for this group."}
+            </DialogDescription>
+          </DialogHeader>
+          <label className="grid gap-1.5">
+            <span className="text-sm font-medium text-foreground">Group name</span>
+            <Input
+              autoFocus
+              maxLength={80}
+              onChange={(event) => setName(event.currentTarget.value)}
+              placeholder="For example, Work"
+              value={name}
+            />
+          </label>
+          {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button disabled={saving} type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button disabled={saving || !name.trim()} type="submit">
+              {mode === "create" ? <FolderPlus size={14} /> : <Pencil size={14} />}
+              {saving
+                ? mode === "create"
+                  ? "Creating..."
+                  : "Saving..."
+                : mode === "create"
+                  ? "Create group"
+                  : "Save name"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteTopicGroupDialog({
+  group,
+  onDelete,
+  onOpenChange,
+  open
+}: {
+  group: TopicGroup;
+  onDelete: (groupId: number) => Promise<void>;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (open) {
+      setError(undefined);
+    }
+  }, [open]);
+
+  const handleDelete = async () => {
+    if (deleting) {
+      return;
+    }
+
+    setDeleting(true);
+    setError(undefined);
+
+    try {
+      await onDelete(group.id);
+      onOpenChange(false);
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error ? deleteError.message : "Topic group could not be deleted."
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog
+      onOpenChange={(nextOpen) => {
+        if (!deleting) {
+          onOpenChange(nextOpen);
+        }
+      }}
+      open={open}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete {group.name}?</DialogTitle>
+          <DialogDescription>
+            Topics in this group will move to Ungrouped. No topics, lessons, or files will be
+            deleted.
+          </DialogDescription>
+        </DialogHeader>
+        {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button disabled={deleting} type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button
+            disabled={deleting}
+            onClick={() => {
+              void handleDelete();
+            }}
+            type="button"
+            variant="destructive"
+          >
+            <Trash2 size={14} />
+            {deleting ? "Deleting..." : "Delete group"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -198,6 +330,7 @@ function TopicRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(topic.title);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const complete = topic.lessonCount > 0 && topic.completedLessonCount >= topic.lessonCount;
@@ -252,20 +385,15 @@ function TopicRow({
   };
 
   const handleDelete = async () => {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(`Delete "${topic.title}" and all of its lessons, learning records, and files?`)
-    ) {
-      return;
-    }
-
     setSaving(true);
     setError(undefined);
 
     try {
       await onDeleteTopic(topic.id, topic.slug);
+      setConfirmingDelete(false);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Topic could not be deleted.");
+    } finally {
       setSaving(false);
     }
   };
@@ -346,46 +474,40 @@ function TopicRow({
                   <MoreHorizontal size={14} />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onSelect={() => setEditing(true)}>
                   <Pencil size={14} />
                   Rename
                 </DropdownMenuItem>
                 {groups.length ? (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <span>Move to group</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuLabel>Topic group</DropdownMenuLabel>
-                      <DropdownMenuItem
-                        disabled={saving || topic.groupId === null}
-                        onSelect={() => {
-                          void handleGroupChange("");
-                        }}
-                      >
-                        No group
-                      </DropdownMenuItem>
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Move to</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      onValueChange={(value) => {
+                        void handleGroupChange(value === "ungrouped" ? "" : value);
+                      }}
+                      value={topic.groupId === null ? "ungrouped" : String(topic.groupId)}
+                    >
+                      <DropdownMenuRadioItem disabled={saving} value="ungrouped">
+                        Ungrouped
+                      </DropdownMenuRadioItem>
                       {groups.map((group) => (
-                        <DropdownMenuItem
-                          disabled={saving || topic.groupId === group.id}
+                        <DropdownMenuRadioItem
+                          disabled={saving}
                           key={group.id}
-                          onSelect={() => {
-                            void handleGroupChange(String(group.id));
-                          }}
+                          value={String(group.id)}
                         >
-                          {group.name}
-                        </DropdownMenuItem>
+                          <span className="truncate">{group.name}</span>
+                        </DropdownMenuRadioItem>
                       ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
+                    </DropdownMenuRadioGroup>
+                  </>
                 ) : null}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   disabled={saving}
-                  onSelect={() => {
-                    void handleDelete();
-                  }}
+                  onSelect={() => setConfirmingDelete(true)}
                   variant="destructive"
                 >
                   <Trash2 size={14} />
@@ -410,43 +532,165 @@ function TopicRow({
         </div>
       )}
       {error ? <p className="text-xs font-medium text-danger">{error}</p> : null}
+      <Dialog
+        onOpenChange={(nextOpen) => {
+          if (!saving) {
+            setConfirmingDelete(nextOpen);
+          }
+        }}
+        open={confirmingDelete}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {topic.title}?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes the topic and its lessons, tutor memory, resources, and
+              local files.
+            </DialogDescription>
+          </DialogHeader>
+          {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button disabled={saving} type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              disabled={saving}
+              onClick={() => {
+                void handleDelete();
+              }}
+              type="button"
+              variant="destructive"
+            >
+              <Trash2 size={14} />
+              {saving ? "Deleting..." : "Delete topic"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </article>
   );
 }
 
 function TopicGroupSection({
   activeSlug,
+  availableTopics,
   group,
   groups,
   onDeleteTopic,
+  onDeleteTopicGroup,
   onTopicGroupChange,
   onTopicGroupCollapseChange,
+  onTopicGroupRename,
   onTopicTitleChange,
   topics
 }: {
   activeSlug: string | null;
+  availableTopics: TopicSummary[];
   group: TopicGroup;
   groups: TopicGroup[];
   onDeleteTopic: (topicId: number, slug: string) => Promise<void>;
+  onDeleteTopicGroup: (groupId: number) => Promise<void>;
   onTopicGroupChange: (topicId: number, groupId: number | null) => Promise<void>;
   onTopicGroupCollapseChange: (groupId: number, collapsed: boolean) => Promise<void>;
+  onTopicGroupRename: (groupId: number, name: string) => Promise<void>;
   onTopicTitleChange: (topicId: number, title: string) => Promise<void>;
   topics: TopicSummary[];
 }) {
+  const [assigningTopicId, setAssigningTopicId] = useState<number>();
+  const [error, setError] = useState<string>();
+  const [renaming, setRenaming] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  const handleAddTopic = async (topic: TopicSummary) => {
+    if (assigningTopicId !== undefined) {
+      return;
+    }
+
+    setAssigningTopicId(topic.id);
+    setError(undefined);
+
+    try {
+      await onTopicGroupChange(topic.id, group.id);
+    } catch (assignError) {
+      setError(assignError instanceof Error ? assignError.message : "Topic could not be added.");
+    } finally {
+      setAssigningTopicId(undefined);
+    }
+  };
+
   return (
     <section className="grid gap-1">
-      <button
-        aria-expanded={!group.collapsed}
-        className={`flex min-h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-left text-[12px] font-semibold text-sidebar-muted hover:bg-sidebar-accent/40 hover:text-sidebar-foreground active:translate-y-px ${sidebarFocus}`}
-        onClick={() => {
-          void onTopicGroupCollapseChange(group.id, !group.collapsed).catch(() => undefined);
-        }}
-        type="button"
-      >
-        {group.collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-        <span className="min-w-0 flex-1 truncate">{group.name}</span>
-        <span className="tnum shrink-0 text-[11px] font-medium opacity-70">{topics.length}</span>
-      </button>
+      <div className="flex min-w-0 items-center gap-1">
+        <button
+          aria-expanded={!group.collapsed}
+          className={`flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-[12px] font-semibold text-sidebar-muted hover:bg-sidebar-accent/40 hover:text-sidebar-foreground active:translate-y-px ${sidebarFocus}`}
+          onClick={() => {
+            void onTopicGroupCollapseChange(group.id, !group.collapsed).catch(() => undefined);
+          }}
+          type="button"
+        >
+          {group.collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          <span className="min-w-0 flex-1 truncate">{group.name}</span>
+          <span className="tnum shrink-0 text-[11px] font-medium opacity-70">{topics.length}</span>
+        </button>
+        {availableTopics.length ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label={`Add topic to ${group.name}`}
+                className={iconButtonClass()}
+                disabled={assigningTopicId !== undefined}
+                title={`Add topic to ${group.name}`}
+                type="button"
+              >
+                <PlusIcon size={13} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Add topic</DropdownMenuLabel>
+              {availableTopics.map((topic) => (
+                <DropdownMenuItem
+                  disabled={assigningTopicId !== undefined}
+                  key={topic.id}
+                  onSelect={() => {
+                    void handleAddTopic(topic);
+                  }}
+                >
+                  <span className="max-w-52 truncate">{topic.title}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label={`Group actions for ${group.name}`}
+              className={iconButtonClass()}
+              title="Group actions"
+              type="button"
+            >
+              <MoreHorizontal size={13} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setRenaming(true)}>
+              <Pencil size={14} />
+              Rename group
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => setConfirmingDelete(true)}
+              variant="destructive"
+            >
+              <Trash2 size={14} />
+              Delete group
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       {!group.collapsed ? (
         <div className="grid gap-1">
           {topics.length ? (
@@ -463,11 +707,25 @@ function TopicGroupSection({
             ))
           ) : (
             <p className="rounded-md border border-dashed border-sidebar-border bg-sidebar-accent/20 px-2.5 py-2 text-xs leading-5 text-sidebar-muted">
-              Empty group.
+              No topics in this group yet.
             </p>
           )}
         </div>
       ) : null}
+      {error ? <p className="px-1.5 text-xs font-medium text-danger">{error}</p> : null}
+      <TopicGroupEditorDialog
+        initialName={group.name}
+        mode="rename"
+        onOpenChange={setRenaming}
+        onSubmit={(name) => onTopicGroupRename(group.id, name)}
+        open={renaming}
+      />
+      <DeleteTopicGroupDialog
+        group={group}
+        onDelete={onDeleteTopicGroup}
+        onOpenChange={setConfirmingDelete}
+        open={confirmingDelete}
+      />
     </section>
   );
 }
@@ -476,8 +734,10 @@ export function SidebarContent({
   onCommandOpen,
   onCreateTopicGroup,
   onDeleteTopic,
+  onDeleteTopicGroup,
   onTopicGroupChange,
   onTopicGroupCollapseChange,
+  onTopicGroupRename,
   onTopicTitleChange,
   route,
   topics,
@@ -498,7 +758,7 @@ export function SidebarContent({
         <span className="grid size-8 shrink-0 place-items-center rounded-md border border-primary/25 bg-primary/90 text-primary-foreground shadow-sm shadow-primary/20">
           <GraduationCapIcon size={17} />
         </span>
-        <span className="truncate text-[15px] font-bold text-sidebar-foreground">Learning Hub</span>
+        <span className="truncate text-[15px] font-bold text-sidebar-foreground">L2Anything</span>
       </a>
 
       <button
@@ -530,8 +790,9 @@ export function SidebarContent({
           <span className="flex shrink-0 items-center gap-1">
             <button
               aria-label="Create topic group"
-              className={iconButtonClass(creatingGroup)}
-              onClick={() => setCreatingGroup((open) => !open)}
+              className={iconButtonClass()}
+              disabled={topicsLoading}
+              onClick={() => setCreatingGroup(true)}
               title="Create topic group"
               type="button"
             >
@@ -549,9 +810,11 @@ export function SidebarContent({
         </div>
 
         {creatingGroup ? (
-          <TopicGroupForm
-            onCancel={() => setCreatingGroup(false)}
-            onCreateTopicGroup={onCreateTopicGroup}
+          <TopicGroupEditorDialog
+            mode="create"
+            onOpenChange={setCreatingGroup}
+            onSubmit={onCreateTopicGroup}
+            open
           />
         ) : null}
 
@@ -563,22 +826,33 @@ export function SidebarContent({
               {groups.map((group) => {
                 const groupTopics = allTopics.filter((topic) => topic.groupId === group.id);
 
-                return groupTopics.length ? (
+                return (
                   <TopicGroupSection
                     activeSlug={activeSlug}
+                    availableTopics={ungroupedTopics}
                     group={group}
                     groups={groups}
                     key={group.id}
                     onDeleteTopic={onDeleteTopic}
+                    onDeleteTopicGroup={onDeleteTopicGroup}
                     onTopicGroupChange={onTopicGroupChange}
                     onTopicGroupCollapseChange={onTopicGroupCollapseChange}
+                    onTopicGroupRename={onTopicGroupRename}
                     onTopicTitleChange={onTopicTitleChange}
                     topics={groupTopics}
                   />
-                ) : null;
+                );
               })}
               {ungroupedTopics.length || !groups.length ? (
                 <section className="grid gap-1">
+                  {groups.length ? (
+                    <div className="flex min-h-8 items-center gap-2 px-1.5 text-[11px] font-semibold text-sidebar-muted">
+                      <span className="min-w-0 flex-1 truncate">Ungrouped</span>
+                      <span className="tnum shrink-0 font-medium opacity-70">
+                        {ungroupedTopics.length}
+                      </span>
+                    </div>
+                  ) : null}
                   {ungroupedTopics.map((topic) => (
                     <TopicRow
                       active={activeSlug === topic.slug}
@@ -659,7 +933,7 @@ export function MobileTopBar({
           <span className="grid size-8 shrink-0 place-items-center rounded-md border border-primary/25 bg-primary/90 text-primary-foreground">
             <GraduationCapIcon size={18} />
           </span>
-          <span className="truncate text-[15px] font-bold">Learning Hub</span>
+          <span className="truncate text-[15px] font-bold">L2Anything</span>
         </a>
         <div className="flex shrink-0 items-center gap-2">
           <StatusDot status={awsStatus} />
@@ -685,8 +959,10 @@ export function MobileSidebarSheet({
   onCommandOpen,
   onCreateTopicGroup,
   onDeleteTopic,
+  onDeleteTopicGroup,
   onTopicGroupChange,
   onTopicGroupCollapseChange,
+  onTopicGroupRename,
   onTopicTitleChange,
   open,
   route,
@@ -696,64 +972,56 @@ export function MobileSidebarSheet({
   onClose: () => void;
   open: boolean;
 }) {
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, open]);
-
-  if (!open) {
-    return null;
-  }
-
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm lg:hidden"
-      onClick={onClose}
-      role="dialog"
+    <Sheet
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          onClose();
+        }
+      }}
+      open={open}
     >
-      <aside
-        aria-label="Mobile navigation"
-        className="flex h-full w-[min(21rem,calc(100vw-2rem))] max-w-full flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar/90 text-sidebar-foreground shadow-2xl backdrop-blur-2xl"
+      <SheetContent
+        className="w-[min(21rem,calc(100vw-2rem))] max-w-full gap-0 border-sidebar-border bg-sidebar/95 p-0 text-sidebar-foreground"
         id="mobile-sidebar-sheet"
-        onClick={(event) => event.stopPropagation()}
+        showCloseButton={false}
+        side="left"
       >
-        <div className="flex min-h-14 items-center justify-between gap-3 border-b border-sidebar-border px-4">
-          <span className="truncate text-sm font-semibold">Navigation</span>
-          <button
-            aria-label="Close navigation"
-            autoFocus
-            className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-md border border-sidebar-border px-3 text-[13px] font-medium hover:bg-sidebar-accent active:translate-y-px ${sidebarFocus}`}
-            onClick={onClose}
-            type="button"
-          >
-            <XIcon size={15} />
-            Close
-          </button>
+        <SheetHeader className="min-h-14 flex-row items-center justify-between gap-3 border-b border-sidebar-border px-4 py-2">
+          <div className="min-w-0">
+            <SheetTitle className="truncate text-sm">Navigation</SheetTitle>
+            <SheetDescription className="sr-only">
+              Open topics, settings, and learning tools.
+            </SheetDescription>
+          </div>
+          <SheetClose asChild>
+            <button
+              aria-label="Close navigation"
+              className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-md border border-sidebar-border px-3 text-[13px] font-medium hover:bg-sidebar-accent active:translate-y-px ${sidebarFocus}`}
+              type="button"
+            >
+              <XIcon size={15} />
+              Close
+            </button>
+          </SheetClose>
+        </SheetHeader>
+        <div className="min-h-0 flex-1">
+          <SidebarContent
+            awsStatus={awsStatus}
+            onCommandOpen={onCommandOpen}
+            onCreateTopicGroup={onCreateTopicGroup}
+            onDeleteTopic={onDeleteTopic}
+            onDeleteTopicGroup={onDeleteTopicGroup}
+            onTopicGroupChange={onTopicGroupChange}
+            onTopicGroupCollapseChange={onTopicGroupCollapseChange}
+            onTopicGroupRename={onTopicGroupRename}
+            onTopicTitleChange={onTopicTitleChange}
+            route={route}
+            topics={topics}
+            topicsLoading={topicsLoading}
+          />
         </div>
-        <SidebarContent
-          awsStatus={awsStatus}
-          onCommandOpen={onCommandOpen}
-          onCreateTopicGroup={onCreateTopicGroup}
-          onDeleteTopic={onDeleteTopic}
-          onTopicGroupChange={onTopicGroupChange}
-          onTopicGroupCollapseChange={onTopicGroupCollapseChange}
-          onTopicTitleChange={onTopicTitleChange}
-          route={route}
-          topics={topics}
-          topicsLoading={topicsLoading}
-        />
-      </aside>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }

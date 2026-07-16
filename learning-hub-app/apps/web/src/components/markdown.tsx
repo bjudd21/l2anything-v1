@@ -62,7 +62,15 @@ function inlineMarkdown(text: string) {
   return nodes;
 }
 
-export function MarkdownView({ content, empty }: { content?: string | null; empty: string }) {
+export function MarkdownView({
+  content,
+  empty,
+  omitFirstHeading = false
+}: {
+  content?: string | null;
+  empty: string;
+  omitFirstHeading?: boolean;
+}) {
   if (!content?.trim()) {
     return <p className="text-sm leading-6 text-muted-foreground">{empty}</p>;
   }
@@ -73,6 +81,7 @@ export function MarkdownView({ content, empty }: { content?: string | null; empt
   let codeLines: string[] = [];
   let codeLang = "";
   let inCode = false;
+  let firstHeadingOmitted = false;
 
   function flushList() {
     if (!listItems.length) {
@@ -167,6 +176,11 @@ export function MarkdownView({ content, empty }: { content?: string | null; empt
     }
 
     if (trimmed.startsWith("# ")) {
+      if (omitFirstHeading && !firstHeadingOmitted) {
+        firstHeadingOmitted = true;
+        return;
+      }
+
       blocks.push(
         <h2 className="text-lg font-bold" key={index}>
           {inlineMarkdown(trimmed.slice(2))}

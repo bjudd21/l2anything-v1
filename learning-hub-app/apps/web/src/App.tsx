@@ -2,6 +2,8 @@ import type {
   AwsStatusResponse,
   DashboardResponse,
   LessonStatus,
+  Quiz,
+  QuizAttemptResponse,
   SettingsResponse,
   SettingsUpdate,
   SetupUpdate,
@@ -27,6 +29,7 @@ import {
   createTopicGroup,
   deleteLesson,
   deleteTopic,
+  deleteTopicGroup,
   fetchDashboard,
   fetchAwsStatus,
   fetchSettings,
@@ -41,6 +44,7 @@ import {
   saveSettings,
   saveSetup,
   streamTopicLessonGeneration,
+  submitQuizAttempt,
   updateLessonDueDate,
   updateLessonTitle,
   updateLessonStatus,
@@ -126,6 +130,7 @@ function Content({
   onLessonTitleChange,
   onSaveSettings,
   onStatusChange,
+  onSubmitQuiz,
   onTopicTitleChange,
   onTopicCreated,
   records,
@@ -159,10 +164,15 @@ function Content({
     lessonNumber: number,
     dueAt: string | null
   ) => Promise<void>;
-  onGenerateQuiz: (topicId: number, lessonId?: number) => void;
+  onGenerateQuiz: (topicId: number, lessonId?: number) => Promise<Quiz>;
   onLessonTitleChange: (topicId: number, lessonNumber: number, title: string) => Promise<void>;
   onSaveSettings: (update: SettingsUpdate) => void;
-  onStatusChange: (topicId: number, lessonNumber: number, status: LessonStatus) => void;
+  onStatusChange: (topicId: number, lessonNumber: number, status: LessonStatus) => Promise<void>;
+  onSubmitQuiz: (
+    topicId: number,
+    quizId: number,
+    answers: Record<string, string>
+  ) => Promise<QuizAttemptResponse>;
   onTopicTitleChange: (topicId: number, title: string) => Promise<void>;
   onTopicCreated: (
     topicsResponse: TopicsResponse,
@@ -211,7 +221,6 @@ function Content({
         lessons={lessons}
         loading={contentLoading}
         onGenerateLesson={onGenerateLesson}
-        onStatusChange={onStatusChange}
         onTopicTitleChange={onTopicTitleChange}
         route={route}
         topic={topic}
@@ -227,7 +236,6 @@ function Content({
         onDeleteLesson={onDeleteLesson}
         onLessonDueDateChange={onLessonDueDateChange}
         onLessonTitleChange={onLessonTitleChange}
-        onStatusChange={onStatusChange}
         onTopicTitleChange={onTopicTitleChange}
         route={route}
         topic={topic}
@@ -250,6 +258,7 @@ function Content({
         onLessonDueDateChange={onLessonDueDateChange}
         onGenerateQuiz={onGenerateQuiz}
         onStatusChange={onStatusChange}
+        onSubmitQuiz={onSubmitQuiz}
         onTopicTitleChange={onTopicTitleChange}
         route={route}
         topic={topic}
@@ -800,11 +809,13 @@ export function App({
       }
 
       const existing = current.groups.some((group) => group.id === updatedGroup.id);
+      const groups = existing
+        ? current.groups.map((group) => (group.id === updatedGroup.id ? updatedGroup : group))
+        : [...current.groups, updatedGroup];
+
       return {
         ...current,
-        groups: existing
-          ? current.groups.map((group) => (group.id === updatedGroup.id ? updatedGroup : group))
-          : [...current.groups, updatedGroup].sort((a, b) => a.name.localeCompare(b.name))
+        groups: groups.sort((a, b) => a.name.localeCompare(b.name))
       };
     });
   };
@@ -840,6 +851,58 @@ export function App({
       applyTopicGroupUpdate(response.group);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Topic group could not be updated.";
+      setContentError(message);
+      throw error;
+    }
+  };
+
+  const handleTopicGroupRename = async (groupId: number, name: string) => {
+    try {
+      const response = await updateTopicGroup(groupId, { name });
+      applyTopicGroupUpdate(response.group);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Topic group could not be renamed.";
+      setContentError(message);
+      throw error;
+    }
+  };
+
+  const handleTopicGroupDelete = async (groupId: number) => {
+    try {
+      await deleteTopicGroup(groupId);
+      setTopics((current) =>
+        current
+          ? {
+              ...current,
+              groups: current.groups.filter((group) => group.id !== groupId),
+              topics: current.topics.map((topic) =>
+                topic.groupId === groupId ? { ...topic, groupId: null } : topic
+              )
+            }
+          : current
+      );
+      setTopicDetails((current) =>
+        Object.fromEntries(
+          Object.entries(current).map(([topicId, detail]) => [
+            topicId,
+            detail.topic.groupId === groupId
+              ? { ...detail, topic: { ...detail.topic, groupId: null } }
+              : detail
+          ])
+        )
+      );
+      setDashboard((current) =>
+        current
+          ? {
+              ...current,
+              topics: current.topics.map((topic) =>
+                topic.groupId === groupId ? { ...topic, groupId: null } : topic
+              )
+            }
+          : current
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Topic group could not be deleted.";
       setContentError(message);
       throw error;
     }
@@ -975,25 +1038,22 @@ export function App({
     }
   };
 
-  const handleStatusChange = (topicId: number, lessonNumber: number, status: LessonStatus) => {
-    void updateLessonStatus(topicId, lessonNumber, status)
-      .then(async (response) => {
-        applyLessonUpdate(topicId, response.lesson);
+  const handleStatusChange = async (
+    topicId: number,
+    lessonNumber: number,
+    status: LessonStatus
+  ) => {
+    const response = await updateLessonStatus(topicId, lessonNumber, status);
+    applyLessonUpdate(topicId, response.lesson);
 
-        const [nextTopics, nextDetail, nextDashboard] = await Promise.all([
-          fetchTopics(),
-          fetchTopicDetail(topicId),
-          fetchDashboard()
-        ]);
-        setTopics(nextTopics);
-        setTopicDetails((current) => ({ ...current, [topicId]: nextDetail }));
-        setDashboard(nextDashboard);
-      })
-      .catch((error) => {
-        setContentError(
-          error instanceof Error ? error.message : "Lesson status could not be saved."
-        );
-      });
+    const [nextTopics, nextDetail, nextDashboard] = await Promise.all([
+      fetchTopics(),
+      fetchTopicDetail(topicId),
+      fetchDashboard()
+    ]);
+    setTopics(nextTopics);
+    setTopicDetails((current) => ({ ...current, [topicId]: nextDetail }));
+    setDashboard(nextDashboard);
   };
 
   const handleArtifactCreated = (topicId: number, event: ArtifactCreatedEvent) => {
@@ -1230,29 +1290,29 @@ export function App({
     }
   };
 
-  const handleGenerateQuiz = (topicId: number, lessonId?: number) => {
-    const topicSlug = topics?.topics.find((topic) => topic.id === topicId)?.slug;
+  const handleGenerateQuiz = async (topicId: number, lessonId?: number) => {
+    const response = await generateTopicQuiz(topicId, lessonId ? { lessonId } : {});
+    return response.quiz;
+  };
 
-    void generateTopicQuiz(topicId, lessonId ? { lessonId } : {})
-      .then(async () => {
-        const [nextTopics, nextDetail, nextReview, nextDashboard] = await Promise.all([
-          fetchTopics(),
-          fetchTopicDetail(topicId),
-          fetchTopicReview(topicId),
-          fetchDashboard()
-        ]);
+  const handleSubmitQuiz = async (
+    topicId: number,
+    quizId: number,
+    answers: Record<string, string>
+  ) => {
+    const response = await submitQuizAttempt(quizId, { answers });
+    const [nextTopics, nextDetail, nextReview, nextDashboard] = await Promise.all([
+      fetchTopics(),
+      fetchTopicDetail(topicId),
+      fetchTopicReview(topicId),
+      fetchDashboard()
+    ]);
 
-        setTopics(nextTopics);
-        setTopicDetails((current) => ({ ...current, [topicId]: nextDetail }));
-        setTopicReview((current) => ({ ...current, [topicId]: nextReview }));
-        setDashboard(nextDashboard);
-        if (topicSlug) {
-          navigate(`/t/${encodeURIComponent(topicSlug)}/review`);
-        }
-      })
-      .catch((error) => {
-        setContentError(error instanceof Error ? error.message : "Quiz could not be generated.");
-      });
+    setTopics(nextTopics);
+    setTopicDetails((current) => ({ ...current, [topicId]: nextDetail }));
+    setTopicReview((current) => ({ ...current, [topicId]: nextReview }));
+    setDashboard(nextDashboard);
+    return response;
   };
 
   if (!settings) {
@@ -1287,9 +1347,11 @@ export function App({
             awsStatus={awsStatus}
             onCommandOpen={() => setCommandOpen(true)}
             onCreateTopicGroup={handleCreateTopicGroup}
+            onDeleteTopicGroup={handleTopicGroupDelete}
             onDeleteTopic={handleDeleteTopic}
             onTopicGroupChange={handleTopicGroupChange}
             onTopicGroupCollapseChange={handleTopicGroupCollapseChange}
+            onTopicGroupRename={handleTopicGroupRename}
             onTopicTitleChange={handleTopicTitleChange}
             route={route}
             topics={topics}
@@ -1331,6 +1393,7 @@ export function App({
               onLessonTitleChange={handleLessonTitleChange}
               onSaveSettings={handleSaveSettings}
               onStatusChange={handleStatusChange}
+              onSubmitQuiz={handleSubmitQuiz}
               onTopicCreated={handleTopicCreated}
               onTopicTitleChange={handleTopicTitleChange}
               records={activeRecords}
@@ -1355,10 +1418,12 @@ export function App({
           setCommandOpen(true);
         }}
         onCreateTopicGroup={handleCreateTopicGroup}
+        onDeleteTopicGroup={handleTopicGroupDelete}
         onDeleteTopic={handleDeleteTopic}
         open={mobileNavigationOpen}
         onTopicGroupChange={handleTopicGroupChange}
         onTopicGroupCollapseChange={handleTopicGroupCollapseChange}
+        onTopicGroupRename={handleTopicGroupRename}
         onTopicTitleChange={handleTopicTitleChange}
         route={route}
         topics={topics}

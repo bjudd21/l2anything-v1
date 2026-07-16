@@ -474,7 +474,13 @@ function ResumeHero({
       </div>
 
       <div className="mt-7 grid min-w-0 gap-5 border-t border-border pt-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-        <LessonStepper current={topic.dueReviewCount ? "quiz" : "read"} />
+        <LessonStepper
+          current={
+            topic.lessonCount > 0 && topic.completedLessonCount >= topic.lessonCount
+              ? "complete"
+              : "learn"
+          }
+        />
         <a className={`${button.primary} w-full sm:w-auto`} href={action.href}>
           <Play size={14} />
           {primaryActionLabel(action)}
