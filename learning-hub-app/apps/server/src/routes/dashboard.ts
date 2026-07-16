@@ -40,6 +40,42 @@ function dueLessons(db: AppDatabase, topicId: number) {
     .sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? "") || a.number - b.number);
 }
 
+function lessonDeadlines(
+  db: AppDatabase,
+  topics: Array<{ id: number; slug: string; title: string }>
+) {
+  return topics
+    .flatMap((topic) =>
+      db
+        .select()
+        .from(lessonsIndex)
+        .where(eq(lessonsIndex.topicId, topic.id))
+        .all()
+        .flatMap((lesson) =>
+          lesson.status !== "completed" && lesson.dueAt
+            ? [
+                {
+                  id: lesson.id,
+                  topicId: topic.id,
+                  topicSlug: topic.slug,
+                  topicTitle: topic.title,
+                  number: lesson.number,
+                  title: lesson.title,
+                  dueAt: lesson.dueAt,
+                  href: `/t/${encodeURIComponent(topic.slug)}/lessons/${lesson.number}`
+                }
+              ]
+            : []
+        )
+    )
+    .sort(
+      (left, right) =>
+        left.dueAt.localeCompare(right.dueAt) ||
+        left.topicTitle.localeCompare(right.topicTitle) ||
+        left.number - right.number
+    );
+}
+
 function markdownResourceCount(markdown: string | null) {
   if (!markdown) {
     return 0;
@@ -136,8 +172,15 @@ export function createDashboardRoutes(dependencies: DashboardRouteDependencies) 
         fileName: record.fileName,
         title: record.title
       }));
-    const totalDueLessons = topicSummaries.reduce((total, topic) => total + topic.dueLessonCount, 0);
-    const totalDueReviews = topicSummaries.reduce((total, topic) => total + topic.dueReviewCount, 0);
+    const totalDueLessons = topicSummaries.reduce(
+      (total, topic) => total + topic.dueLessonCount,
+      0
+    );
+    const totalDueReviews = topicSummaries.reduce(
+      (total, topic) => total + topic.dueReviewCount,
+      0
+    );
+    const scheduledLessonDeadlines = lessonDeadlines(dependencies.db, topicSummaries);
 
     // "Up next" follows the teach-skill flow instead of list order:
     // due lesson deadline -> due reviews -> an unfinished lesson -> a mission
@@ -175,46 +218,47 @@ export function createDashboardRoutes(dependencies: DashboardRouteDependencies) 
           href: `/t/${encodeURIComponent(dueLessonCandidate.topic.slug)}/lessons/${dueLessonCandidate.lesson.number}`
         }
       : firstDueTopic
-      ? {
-          label: "Review due items",
-          description: `${firstDueTopic.title} has ${firstDueTopic.dueReviewCount} due review items.`,
-          href: `/t/${encodeURIComponent(firstDueTopic.slug)}/review`
-        }
-      : lessonCandidate
         ? {
-            label: `Open lesson ${String(lessonCandidate.lesson.number).padStart(4, "0")}`,
-            description: `${lessonCandidate.topic.title}: ${lessonCandidate.lesson.title}`,
-            href: `/t/${encodeURIComponent(lessonCandidate.topic.slug)}/lessons/${lessonCandidate.lesson.number}`
+            label: "Review due items",
+            description: `${firstDueTopic.title} has ${firstDueTopic.dueReviewCount} due review items.`,
+            href: `/t/${encodeURIComponent(firstDueTopic.slug)}/review`
           }
-        : interviewTopic
+        : lessonCandidate
           ? {
-              label: "Open topic overview",
-              description: `${interviewTopic.title} needs a mission before lessons can stay grounded.`,
-              href: `/t/${encodeURIComponent(interviewTopic.slug)}`
+              label: `Open lesson ${String(lessonCandidate.lesson.number).padStart(4, "0")}`,
+              description: `${lessonCandidate.topic.title}: ${lessonCandidate.lesson.title}`,
+              href: `/t/${encodeURIComponent(lessonCandidate.topic.slug)}/lessons/${lessonCandidate.lesson.number}`
             }
-          : generateTopic
+          : interviewTopic
             ? {
-                label: "Generate the first lesson",
-                description: `${generateTopic.title} has a mission and is ready for its first lesson.`,
-                href: `/t/${encodeURIComponent(generateTopic.slug)}`
+                label: "Open topic overview",
+                description: `${interviewTopic.title} needs a mission before lessons can stay grounded.`,
+                href: `/t/${encodeURIComponent(interviewTopic.slug)}`
               }
-            : firstTopic
+            : generateTopic
               ? {
-                  label: "Continue topic",
-                  description: `${firstTopic.title} is ready for the next action.`,
-                  href: `/t/${encodeURIComponent(firstTopic.slug)}`
+                  label: "Generate the first lesson",
+                  description: `${generateTopic.title} has a mission and is ready for its first lesson.`,
+                  href: `/t/${encodeURIComponent(generateTopic.slug)}`
                 }
-              : {
-                  label: "Create a topic",
-                  description: "Start with a mission interview.",
-                  href: "/topics/new"
-                };
+              : firstTopic
+                ? {
+                    label: "Continue topic",
+                    description: `${firstTopic.title} is ready for the next action.`,
+                    href: `/t/${encodeURIComponent(firstTopic.slug)}`
+                  }
+                : {
+                    label: "Create a topic",
+                    description: "Start with a mission interview.",
+                    href: "/topics/new"
+                  };
 
     return context.json(
       dashboardResponseSchema.parse({
         ok: true,
         dueLessonCount: totalDueLessons,
         dueReviewCount: totalDueReviews,
+        lessonDeadlines: scheduledLessonDeadlines,
         recentRecords,
         topics: topicSummaries,
         nextAction

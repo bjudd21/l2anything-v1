@@ -38,7 +38,11 @@ function NavMetric({
     >
       <div
         className={`tnum font-mono text-sm font-semibold leading-tight ${
-          tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-foreground"
+          tone === "danger"
+            ? "text-danger"
+            : tone === "warning"
+              ? "text-warning"
+              : "text-foreground"
         }`}
       >
         {value}
@@ -62,7 +66,6 @@ export function TopBar({
   topics?: TopicsResponse;
 }) {
   const allTopics = topics?.topics ?? [];
-  const completedLessons = allTopics.reduce((sum, item) => sum + item.completedLessonCount, 0);
   const dueLessons = allTopics.reduce((sum, item) => sum + item.dueLessonCount, 0);
   const dueReviews = allTopics.reduce((sum, item) => sum + item.dueReviewCount, 0);
 
@@ -83,15 +86,10 @@ export function TopBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {completedLessons > 0 ? (
-          <NavMetric label="lessons done" value={completedLessons} />
-        ) : null}
         {dueLessons > 0 ? (
           <NavMetric label="lessons due" tone="warning" value={dueLessons} />
         ) : null}
-        {dueReviews > 0 ? (
-          <NavMetric label="reviews due" tone="danger" value={dueReviews} />
-        ) : null}
+        {dueReviews > 0 ? <NavMetric label="reviews due" tone="danger" value={dueReviews} /> : null}
         <button
           aria-label="Open command palette"
           className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-card/45 px-2.5 text-xs font-medium text-muted-foreground backdrop-blur-xl hover:bg-secondary/75 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:translate-y-px"

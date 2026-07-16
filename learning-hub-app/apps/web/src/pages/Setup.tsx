@@ -4,15 +4,7 @@ import type {
   SettingsResponse,
   SetupUpdate
 } from "@learning-hub/shared";
-import {
-  ArrowRight,
-  BrainCircuit,
-  Cloud,
-  GraduationCap,
-  LogIn,
-  RefreshCw,
-  ShieldCheck
-} from "lucide-react";
+import { ArrowRight, Cloud, GraduationCap, LogIn, RefreshCw, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createAwsProfile, fetchAwsProfiles, runAwsLogin } from "../api.js";
 import { Button, field, InlineNotice, Input, Select } from "../components/ui.js";
@@ -110,13 +102,14 @@ export function SetupPage({
     setLoginStatus("running");
     setLoginMessage("");
     setError("");
+    setStatus("idle");
 
     void resolveSelectedProfile()
       .then((profile) => runAwsLogin(profile))
       .then((login) => {
         setLoginStatus(login.ok ? "succeeded" : "failed");
         setLoginMessage(
-          login.ok ? "AWS sign-in completed. Save setup to verify Sonnet 5 access." : login.message
+          login.ok ? "AWS sign-in completed. Verify access to continue." : login.message
         );
       })
       .catch((reason: unknown) => {
@@ -126,11 +119,15 @@ export function SetupPage({
         );
       });
   };
+  const needsSignIn =
+    loginStatus !== "succeeded" &&
+    (creatingProfile || status === "error" || loginStatus === "failed");
+  const profilesPending = profilesStatus === "loading" && !profileChoice;
 
   return (
     <main className="workspace-canvas min-h-dvh w-full overflow-x-hidden px-4 py-6 text-foreground sm:px-6 sm:py-10">
-      <div className="mx-auto grid w-full max-w-5xl gap-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-10">
-        <header className="flex min-w-0 items-center gap-3 lg:col-span-2">
+      <div className="mx-auto grid w-full max-w-3xl gap-7">
+        <header className="flex min-w-0 items-center gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-md border border-primary/30 bg-primary text-primary-foreground shadow-lg shadow-primary/25">
             <GraduationCap size={21} />
           </span>
@@ -193,6 +190,10 @@ export function SetupPage({
                   onChange={(event) => {
                     const next = event.currentTarget.value;
                     setProfileChoice(next);
+                    setStatus("idle");
+                    setLoginStatus("idle");
+                    setLoginMessage("");
+                    setError("");
                     const profile = profiles.find((item) => item.name === next);
                     if (profile?.region) {
                       setAwsRegion(profile.region);
@@ -219,7 +220,12 @@ export function SetupPage({
                   autoComplete="off"
                   className={`${field} font-mono text-[13px]`}
                   id="setup-aws-region"
-                  onChange={(event) => setAwsRegion(event.currentTarget.value)}
+                  onChange={(event) => {
+                    setAwsRegion(event.currentTarget.value);
+                    setStatus("idle");
+                    setLoginStatus("idle");
+                    setLoginMessage("");
+                  }}
                   required
                   spellCheck={false}
                   value={awsRegion}
@@ -327,24 +333,37 @@ export function SetupPage({
                   Cancel
                 </Button>
               ) : null}
-              <Button
-                aria-busy={loginStatus === "running"}
-                disabled={status === "saving" || loginStatus === "running" || !profileChoice}
-                onClick={handleAwsLogin}
-                type="button"
-                variant="secondary"
-              >
-                <LogIn size={15} />
-                {loginStatus === "running" ? "Waiting for AWS" : "Sign in with AWS"}
-              </Button>
-              <Button
-                aria-busy={status === "saving"}
-                disabled={status === "saving" || !profileChoice}
-                type="submit"
-              >
-                {status === "saving" ? "Saving AWS setup" : "Save and open L2Anything"}
-                <ArrowRight size={15} />
-              </Button>
+              {profilesPending ? (
+                <Button disabled type="button">
+                  <RefreshCw className="animate-spin" size={15} />
+                  Finding AWS profiles
+                </Button>
+              ) : needsSignIn ? (
+                <Button
+                  aria-busy={loginStatus === "running"}
+                  disabled={status === "saving" || loginStatus === "running" || !profileChoice}
+                  onClick={handleAwsLogin}
+                  type="button"
+                >
+                  <LogIn size={15} />
+                  {loginStatus === "running"
+                    ? "Waiting for AWS"
+                    : creatingProfile
+                      ? "Create profile and sign in"
+                      : loginStatus === "failed"
+                        ? "Try AWS sign-in again"
+                        : "Sign in with AWS"}
+                </Button>
+              ) : (
+                <Button
+                  aria-busy={status === "saving"}
+                  disabled={status === "saving" || !profileChoice}
+                  type="submit"
+                >
+                  {status === "saving" ? "Verifying AWS access" : "Verify and open L2Anything"}
+                  <ArrowRight size={15} />
+                </Button>
+              )}
             </div>
           </div>
 
@@ -363,32 +382,6 @@ export function SetupPage({
             </div>
           ) : null}
         </form>
-
-        <aside className="grid content-start gap-6 lg:pt-1">
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground">Workspace location</p>
-            <p className="mt-2 break-all font-mono text-[12px] leading-5 text-muted-foreground">
-              {settings.workspaceDir}
-            </p>
-            <p className="mt-2 text-[13px] leading-5 text-muted-foreground">
-              Created automatically inside this installation.
-            </p>
-          </div>
-          <div className="border-t border-border pt-5">
-            <p className="text-xs font-semibold text-muted-foreground">Ready by default</p>
-            <div className="mt-3 flex gap-3">
-              <span className="grid size-8 shrink-0 place-items-center rounded-md border border-primary/25 bg-primary-soft/65 text-primary">
-                <BrainCircuit size={16} />
-              </span>
-              <div>
-                <h2 className="text-sm font-bold text-foreground">Claude Sonnet 5</h2>
-                <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
-                  Bedrock Converse through your selected AWS profile.
-                </p>
-              </div>
-            </div>
-          </div>
-        </aside>
       </div>
     </main>
   );

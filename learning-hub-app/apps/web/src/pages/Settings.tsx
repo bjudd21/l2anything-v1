@@ -7,7 +7,6 @@ import type {
 import { Cloud, Pencil, Route, Settings } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { AwsBanner } from "../components/AwsBanner.js";
-import { CopyIcon } from "../components/icons.js";
 import {
   Badge,
   Button,
@@ -20,12 +19,7 @@ import {
   SectionHeader,
   ShellSkeleton
 } from "../components/ui.js";
-import {
-  awsStatusText,
-  configuredAwsLoginCommand,
-  providerLabel,
-  type AwsLoginStatus
-} from "../lib.js";
+import { awsStatusText, providerLabel, type AwsLoginStatus } from "../lib.js";
 
 const DEFAULT_CONVERSE_MODEL_ID = "us.anthropic.claude-sonnet-5";
 
@@ -59,40 +53,6 @@ function SettingsSection({
       </div>
       {children}
     </section>
-  );
-}
-
-function CopyableReadOnlyField({
-  copied,
-  label,
-  onCopy,
-  value
-}: {
-  copied: boolean;
-  label: string;
-  onCopy: () => void;
-  value: string;
-}) {
-  return (
-    <div className="grid gap-1 text-sm">
-      <span className="font-medium text-foreground">{label}</span>
-      <div className={`${field} flex min-h-10 items-center gap-2 py-2.5`}>
-        <code className="min-w-0 flex-1 break-all font-mono text-[13px] text-muted-foreground">
-          {value}
-        </code>
-        <Button
-          aria-label="Copy login command"
-          className="shrink-0"
-          onClick={onCopy}
-          size="icon-xs"
-          title={copied ? "Copied" : "Copy"}
-          type="button"
-          variant="ghost"
-        >
-          <CopyIcon size={13} />
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -144,7 +104,6 @@ export function SettingsPage({
   const [mantleModelId, setMantleModelId] = useState(
     settings?.mantleModelId ?? "openai.gpt-5.6-sol"
   );
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -162,7 +121,6 @@ export function SettingsPage({
     );
   }
 
-  const loginCommand = configuredAwsLoginCommand(settings, awsStatus);
   const awsStatusDetail = awsStatus && !awsStatus.ok ? awsStatus.message : null;
 
   return (
@@ -184,24 +142,12 @@ export function SettingsPage({
 
       <SettingsSection
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button asChild size="sm" variant="secondary">
-              <a href="/setup">
-                <Pencil size={14} />
-                Change profile
-              </a>
-            </Button>
-            <Button
-              aria-busy={awsLoginStatus === "running"}
-              disabled={awsLoginStatus === "running"}
-              onClick={onAwsLogin}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              {awsLoginStatus === "running" ? "Running login" : "Run AWS login"}
-            </Button>
-          </div>
+          <Button asChild size="sm" variant="secondary">
+            <a href="/setup">
+              <Pencil size={14} />
+              Change profile
+            </a>
+          </Button>
         }
         description="The tutor uses this local AWS profile and region for Bedrock calls."
         icon={<Cloud size={16} />}
@@ -222,28 +168,9 @@ export function SettingsPage({
             value={settings.awsRegion}
             valueClassName="font-mono text-[13px]"
           />
-          <div className="sm:col-span-2">
-            <CopyableReadOnlyField
-              copied={copied}
-              label="Login command"
-              onCopy={() => {
-                if (typeof navigator !== "undefined" && navigator.clipboard) {
-                  void navigator.clipboard.writeText(loginCommand).then(() => setCopied(true));
-                }
-              }}
-              value={loginCommand}
-            />
-          </div>
         </div>
         {awsStatusDetail ? (
           <InlineNotice tone="warning" title="AWS needs attention" body={awsStatusDetail} />
-        ) : null}
-        {awsLoginMessage ? (
-          <InlineNotice
-            body={awsLoginMessage}
-            title={awsLoginStatus === "failed" ? "AWS login failed" : "AWS login status"}
-            tone={awsLoginStatus === "failed" ? "error" : "neutral"}
-          />
         ) : null}
       </SettingsSection>
 

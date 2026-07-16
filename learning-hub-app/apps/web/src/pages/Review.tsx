@@ -1,32 +1,25 @@
 import type { TopicReviewResponse, TopicSummary } from "@learning-hub/shared";
-import { BookOpen, RotateCcw } from "lucide-react";
+import { BookOpen, ChevronDown, List } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ZapIcon } from "../components/icons.js";
 import { TopicHeader } from "../components/TopicHeader.js";
 import {
   Badge,
   button,
+  Button,
   card,
-  DueBadge,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   InlineNotice,
   PageSkeleton,
   SectionHeader,
   StatusCard,
-  StrengthMeter,
-  Textarea,
-  type StrengthLevel
+  Textarea
 } from "../components/ui.js";
 import { topicPath, type Route } from "../lib.js";
 
 const dayMs = 24 * 60 * 60 * 1000;
-
-function strengthFromItem(item: TopicReviewResponse["items"][number]): StrengthLevel {
-  if (item.ease >= 2.7 && item.intervalDays >= 7) {
-    return "strong";
-  }
-
-  return item.intervalDays >= 2 ? "learning" : "new";
-}
 
 function dayStart(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
@@ -70,11 +63,13 @@ export function ReviewPage({
 }) {
   const [answer, setAnswer] = useState("");
   const [index, setIndex] = useState(0);
+  const [queueOpen, setQueueOpen] = useState(false);
   const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     setAnswer("");
     setIndex(0);
+    setQueueOpen(false);
     setRevealed(false);
   }, [topic?.id, review?.items.length]);
 
@@ -110,27 +105,14 @@ export function ReviewPage({
           <StatusCard className="grid gap-4 p-6" tone={activeDue?.overdue ? "danger" : "accent"}>
             <div className="grid gap-2">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>Concept {index + 1}</Badge>
-                <DueBadge count={dueCount} compact />
+                <Badge>
+                  Concept {index + 1} of {dueCount}
+                </Badge>
                 {activeDue ? (
-                  <Badge tone={activeDue.overdue ? "danger" : "warning"}>
-                    {activeDue.label}
-                  </Badge>
+                  <Badge tone={activeDue.overdue ? "danger" : "warning"}>{activeDue.label}</Badge>
                 ) : null}
               </div>
               <h3 className="text-xl font-bold text-foreground">{firstItem.concept}</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge>
-                  Ease <span className="tnum">{firstItem.ease.toFixed(1)}</span>
-                </Badge>
-                <Badge>
-                  <span className="tnum">
-                    {firstItem.intervalDays} day{firstItem.intervalDays === 1 ? "" : "s"}
-                  </span>
-                  &nbsp;interval
-                </Badge>
-                <StrengthMeter level={strengthFromItem(firstItem)} />
-              </div>
             </div>
             <label className="grid gap-1.5 text-sm">
               <span className="font-medium text-foreground">Your answer</span>
@@ -194,16 +176,31 @@ export function ReviewPage({
           </div>
         ) : null}
 
-        {review?.items.length ? (
-          <ReviewQueue
-            activeIndex={index}
-            items={review.items}
-            onSelect={(nextIndex) => {
-              setIndex(nextIndex);
-              setAnswer("");
-              setRevealed(false);
-            }}
-          />
+        {(review?.items.length ?? 0) > 1 ? (
+          <Collapsible onOpenChange={setQueueOpen} open={queueOpen}>
+            <CollapsibleTrigger asChild>
+              <Button className="w-full sm:w-auto" type="button" variant="secondary">
+                <List size={14} />
+                {queueOpen ? "Hide queue" : "View queue"}
+                <Badge className="rounded-full">{review?.items.length}</Badge>
+                <ChevronDown
+                  className={queueOpen ? "rotate-180 transition-transform" : "transition-transform"}
+                  size={14}
+                />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              <ReviewQueue
+                activeIndex={index}
+                items={review?.items ?? []}
+                onSelect={(nextIndex) => {
+                  setIndex(nextIndex);
+                  setAnswer("");
+                  setRevealed(false);
+                }}
+              />
+            </CollapsibleContent>
+          </Collapsible>
         ) : null}
       </section>
     </div>
@@ -220,20 +217,13 @@ function ReviewQueue({
   onSelect: (index: number) => void;
 }) {
   return (
-    <section className="grid gap-3">
-      <SectionHeader
-        count={items.length}
-        icon={<RotateCcw size={16} />}
-        title="Due queue"
-        tone="neutral"
-      />
+    <section aria-label="Due concepts" className="grid gap-3">
       <div className={`${card} overflow-x-auto`}>
-        <table className="w-full min-w-[620px] border-collapse text-sm">
+        <table className="w-full min-w-[480px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-[11px] font-semibold uppercase text-muted-foreground">
               <th className="px-4 py-3">Concept</th>
               <th className="px-4 py-3">Due</th>
-              <th className="px-4 py-3">Strength</th>
             </tr>
           </thead>
           <tbody>
@@ -267,9 +257,6 @@ function ReviewQueue({
                     }`}
                   >
                     {due.label}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StrengthMeter level={strengthFromItem(item)} />
                   </td>
                 </tr>
               );

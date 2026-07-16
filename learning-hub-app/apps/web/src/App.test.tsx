@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { App } from "./App.js";
 import type {
   AwsStatusResponse,
+  DashboardResponse,
   SettingsResponse,
   TopicDetailResponse,
   TopicLessonsResponse,
@@ -71,8 +72,8 @@ const settings: SettingsResponse = {
 
 const awsOk: AwsStatusResponse = {
   ok: true,
-  account: "000000000000",
-  arn: "arn:aws:sts::000000000000:assumed-role/Test/User",
+  account: "123456789012",
+  arn: "arn:aws:sts::123456789012:assumed-role/Test/User",
   region: "us-east-2",
   profile: "learning-dev"
 };
@@ -83,6 +84,31 @@ const awsMissing: AwsStatusResponse = {
   region: "us-east-2",
   profile: "learning-dev",
   message: "AWS credentials were not found for the configured profile."
+};
+
+const dashboard: DashboardResponse = {
+  ok: true,
+  dueLessonCount: 0,
+  dueReviewCount: 0,
+  lessonDeadlines: [
+    {
+      id: 1,
+      topicId: 1,
+      topicSlug: "typescript-basics",
+      topicTitle: "TypeScript Basics",
+      number: 1,
+      title: "Values Before Types",
+      dueAt: "2030-07-17",
+      href: "/t/typescript-basics/lessons/1"
+    }
+  ],
+  recentRecords: [],
+  topics: topics.topics,
+  nextAction: {
+    label: "Open lesson 0001",
+    description: "TypeScript Basics: Values Before Types",
+    href: "/t/typescript-basics/lessons/1"
+  }
 };
 
 const topicDetail: TopicDetailResponse = {
@@ -208,6 +234,79 @@ describe("App", () => {
     expect(html).not.toContain('aria-label="Delete TypeScript Basics"');
   });
 
+  it("shows lesson deadlines without exposing an inactive review queue", () => {
+    const html = renderToString(
+      <App
+        initialAwsStatus={awsOk}
+        initialDashboard={dashboard}
+        initialPath="/"
+        initialSettings={settings}
+        initialTopics={topics}
+      />
+    );
+
+    expect(html).toContain("Lesson deadlines");
+    expect(html).toContain("Values Before Types");
+    expect(html).not.toContain("Review queue");
+    expect(html).not.toContain("No recall reviews scheduled");
+    expect(html).not.toContain("Due for review");
+  });
+
+  it("shows the review queue when a recall prompt is due", () => {
+    const reviewTopics: TopicsResponse = {
+      ...topics,
+      topics: topics.topics.map((topic) =>
+        topic.id === 1
+          ? {
+              ...topic,
+              reviewItemCount: 1,
+              dueReviewCount: 1
+            }
+          : topic
+      )
+    };
+    const reviewDashboard: DashboardResponse = {
+      ...dashboard,
+      dueReviewCount: 1,
+      lessonDeadlines: [],
+      topics: reviewTopics.topics,
+      nextAction: {
+        label: "Review due items",
+        description: "TypeScript Basics has 1 due review item.",
+        href: "/t/typescript-basics/review"
+      }
+    };
+
+    const html = renderToString(
+      <App
+        initialAwsStatus={awsOk}
+        initialDashboard={reviewDashboard}
+        initialPath="/"
+        initialSettings={settings}
+        initialTopicReview={{
+          1: {
+            ok: true,
+            topicId: 1,
+            items: [
+              {
+                id: 1,
+                topicId: 1,
+                concept: "Narrow before casting",
+                ease: 2.3,
+                intervalDays: 1,
+                dueAt: "2026-01-01T00:00:00.000Z"
+              }
+            ]
+          }
+        }}
+        initialTopics={reviewTopics}
+      />
+    );
+
+    expect(html).toContain("Review queue");
+    expect(html).toContain("Narrow before casting");
+  });
+
   it("marks the mobile navigation trigger expanded when opened", () => {
     const html = renderToString(
       <App
@@ -236,9 +335,54 @@ describe("App", () => {
 
     expect(html).toContain('aria-current="page"');
     expect(html).toContain("Mission");
-    expect(html).toContain("Open lesson 0001");
+    expect(html).toContain("Start lesson");
+    expect(html).not.toContain("Current lesson");
+    expect(html).not.toContain("0001-values.html");
     expect(html).not.toContain("Lessons completed");
     expect(html).not.toContain("of 2 generated");
+  });
+
+  it("keeps empty secondary topic sections out of the primary workflow", () => {
+    const freshTopic = topics.topics[1]!;
+    const html = renderToString(
+      <TopicHome
+        awsStatus={awsOk}
+        detail={{
+          ...topicDetail,
+          topic: freshTopic,
+          mission: "# Mission\n\nLearn by building something useful.",
+          counts: {
+            lessons: 0,
+            completedLessons: 0,
+            records: 0,
+            resources: 0,
+            references: 0
+          },
+          recentRecords: [],
+          nextAction: {
+            label: "Generate the first lesson",
+            description: "No lesson files are indexed for this topic yet.",
+            href: null
+          }
+        }}
+        lessonGeneration={{
+          activities: [],
+          needsModelSettings: false,
+          status: "idle"
+        }}
+        lessons={{ ok: true, topicId: freshTopic.id, groups: [], lessons: [] }}
+        loading={false}
+        onGenerateLesson={() => undefined}
+        onTopicTitleChange={() => Promise.resolve()}
+        route={{ name: "topic", slug: freshTopic.slug }}
+        topic={freshTopic}
+      />
+    );
+
+    expect(html).toContain("Generate first lesson");
+    expect(html).not.toContain("Recent tutor memory");
+    expect(html).not.toContain("Current lesson");
+    expect(html).not.toContain("Check understanding");
   });
 
   it("renders topic lesson generation progress from external topic state", () => {
@@ -353,6 +497,52 @@ describe("App", () => {
     expect(html).toContain('aria-current="page"');
   });
 
+  it("keeps review scheduling details behind the learner-facing recall task", () => {
+    const reviewTopic = {
+      ...topics.topics[0]!,
+      reviewItemCount: 2,
+      dueReviewCount: 2
+    };
+    const html = renderToString(
+      <App
+        initialAwsStatus={awsOk}
+        initialPath="/t/typescript-basics/review"
+        initialSettings={settings}
+        initialTopicReview={{
+          1: {
+            ok: true,
+            topicId: 1,
+            items: [
+              {
+                id: 1,
+                topicId: 1,
+                concept: "Narrow before casting",
+                ease: 2.3,
+                intervalDays: 1,
+                dueAt: "2026-01-01T00:00:00.000Z"
+              },
+              {
+                id: 2,
+                topicId: 1,
+                concept: "Values exist at runtime",
+                ease: 2.7,
+                intervalDays: 7,
+                dueAt: "2026-01-02T00:00:00.000Z"
+              }
+            ]
+          }
+        }}
+        initialTopics={{ ...topics, topics: [reviewTopic, topics.topics[1]!] }}
+      />
+    );
+
+    expect(html.replaceAll("<!-- -->", "")).toContain("Concept 1 of 2");
+    expect(html).toContain("View queue");
+    expect(html).not.toContain("Ease");
+    expect(html).not.toContain("interval");
+    expect(html).not.toContain("Strength");
+  });
+
   it("shows a loading shell instead of topic-not-found while topic routes load", () => {
     const html = renderToString(<App initialPath="/t/typescript-basics" />);
 
@@ -378,8 +568,11 @@ describe("App", () => {
     expect(listHtml).not.toContain("0 of 2 complete");
     expect(listHtml).not.toContain("generated");
     expect(listHtml).not.toContain("Status");
+    expect(listHtml).not.toContain("0001-values.html");
     expect(listHtml).toContain("Start lesson");
     expect(listHtml).toContain("Continue lesson");
+    expect(listHtml).toContain('aria-label="Lesson actions for Values Before Types"');
+    expect(listHtml).toContain('aria-label="Lesson actions for Function Inputs"');
 
     const lessonHtml = renderToString(
       <App
@@ -398,8 +591,9 @@ describe("App", () => {
     expect(lessonHtml).toContain("Ask Tutor");
     expect(lessonHtml).not.toContain("Ask the tutor anything about this topic.");
     expect(lessonHtml).toContain("Start knowledge check");
-    expect(lessonHtml).toContain("Check understanding");
-    expect(lessonHtml).toContain("Complete");
+    expect(lessonHtml).toContain('aria-label="Lesson actions"');
+    expect(lessonHtml).not.toContain("Check understanding");
+    expect(lessonHtml).not.toContain(">Complete<");
     expect(lessonHtml).not.toContain("Finish this lesson");
     expect(lessonHtml).not.toContain("Try the exercise");
     expect(lessonHtml).not.toContain("Mark complete");
@@ -452,7 +646,7 @@ describe("App", () => {
 
     expect(html).toContain("AWS connection and model routing");
     expect(html).toContain("AWS credentials missing");
-    expect(html).toContain("Run AWS login");
+    expect(html).toContain("Run login");
     expect(html).toContain("Change profile");
     expect(html).toContain("Advanced model routing");
     expect(html).not.toContain("Refresh models");
@@ -470,19 +664,18 @@ describe("App", () => {
         initialSettings={{
           ...settings,
           setupComplete: false,
-          workspaceDir: "C:/L2Anything/local-learning-hub",
-          awsProfile: null
+          workspaceDir: "C:/L2Anything/local-learning-hub"
         }}
       />
     );
 
     expect(html).toContain("Connect your AWS account");
-    expect(html).toContain("C:/L2Anything/local-learning-hub");
     expect(html).toContain("Create a new SSO profile");
-    expect(html).toContain("Claude Sonnet 5");
-    expect(html).toContain("Sign in with AWS");
     expect(html).toContain("Setup verifies identity and Bedrock Converse access");
-    expect(html).toContain("Save and open L2Anything");
+    expect(html).toContain("Verify and open L2Anything");
+    expect(html).not.toContain("C:/L2Anything/local-learning-hub");
+    expect(html).not.toContain("Claude Sonnet 5");
+    expect(html).not.toContain("Sign in with AWS");
     expect(html).not.toContain("Dashboard");
   });
 
@@ -523,6 +716,8 @@ describe("App", () => {
     expect(html).not.toContain("Bedrock model list");
     expect(html).not.toContain("Model dropdown");
     expect(html).not.toContain("ListFoundationModels");
+    expect(html).not.toContain("Login command");
+    expect(html).not.toContain("Run AWS login");
     expect(html).toContain("us.anthropic.claude-sonnet-5");
     expect(html).toContain("Sonnet 5 is used automatically");
   });
