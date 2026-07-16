@@ -1,5 +1,7 @@
 # L2Anything
 
+[![CI](https://github.com/bjudd21/l2anything-v1/actions/workflows/ci.yml/badge.svg)](https://github.com/bjudd21/l2anything-v1/actions/workflows/ci.yml)
+
 L2Anything is a local learning app that creates lessons, quizzes, tutoring, and review schedules with Amazon Bedrock. Workspace files and app state are stored on your computer; generation requests are sent to your configured Bedrock model.
 
 ## What You Need
