@@ -537,7 +537,9 @@ describe("App", () => {
     );
 
     expect(html.replaceAll("<!-- -->", "")).toContain("Concept 1 of 2");
+    expect(html).toContain("Check answer");
     expect(html).toContain("View queue");
+    expect(html).not.toContain("Next concept");
     expect(html).not.toContain("Ease");
     expect(html).not.toContain("interval");
     expect(html).not.toContain("Strength");

@@ -10,6 +10,8 @@ import {
   lessonTitleUpdateSchema,
   quizGenerateRequestSchema,
   quizGenerateResponseSchema,
+  reviewRatingRequestSchema,
+  reviewRatingResponseSchema,
   topicCreateRequestSchema,
   topicDeleteResponseSchema,
   topicDetailResponseSchema,
@@ -37,7 +39,15 @@ import {
   type TopicSummary
 } from "@learning-hub/shared";
 import { and, eq } from "drizzle-orm";
-import { existsSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync
+} from "node:fs";
 import { basename, join, relative } from "node:path";
 import { Hono } from "hono";
 import { codeToHtml } from "shiki";
@@ -56,6 +66,7 @@ import { buildTutorContext } from "../llm/context.js";
 import { buildLessonGenerationRequest } from "../llm/prompts/tutor.js";
 import { createTutorToolRegistry } from "../llm/tools/registry.js";
 import type { AgentMessage } from "../llm/types.js";
+import { nextReviewSchedule } from "../review/scheduler.js";
 import { scaffoldTopic } from "../workspace/scaffold.js";
 import { indexWorkspace } from "../workspace/indexer.js";
 import { assertInsideRoot, WorkspacePathError } from "../workspace/path.js";
@@ -262,8 +273,7 @@ type RawHtmlResponseOptions = {
   normalizeLesson?: boolean;
 };
 
-const lessonViewportMeta =
-  '<meta name="viewport" content="width=device-width, initial-scale=1">';
+const lessonViewportMeta = '<meta name="viewport" content="width=device-width, initial-scale=1">';
 
 const lessonReaderTheme = `<style id="learning-hub-lesson-theme">
 :root {
@@ -685,8 +695,7 @@ function codeLanguageFromAttributes(attributes: string) {
     ?.split(/\s+/)
     .find((className) => /^(?:language|lang)-/i.test(className))
     ?.replace(/^(?:language|lang)-/i, "");
-  const dataLanguage =
-    /data-(?:language|lang)\s*=\s*["']([^"']+)["']/i.exec(attributes)?.[1] ?? "";
+  const dataLanguage = /data-(?:language|lang)\s*=\s*["']([^"']+)["']/i.exec(attributes)?.[1] ?? "";
   const rawLanguage = (classLanguage || dataLanguage || "text").toLowerCase();
   const sanitized = rawLanguage.replace(/[^a-z0-9_+-]/g, "");
 
@@ -1293,7 +1302,9 @@ export function createTopicsRoutes(dependencies: TopicsRouteDependencies) {
 
   routes.get("/", (context) => context.json(listTopics(dependencies)));
   routes.post("/interview", async (context) => {
-    const parsed = topicInterviewRequestSchema.safeParse(await context.req.json().catch(() => ({})));
+    const parsed = topicInterviewRequestSchema.safeParse(
+      await context.req.json().catch(() => ({}))
+    );
     if (!parsed.success) {
       return context.json(invalidBody("invalid_topic_interview", zodIssues(parsed.error)), 400);
     }
@@ -1662,25 +1673,24 @@ export function createTopicsRoutes(dependencies: TopicsRouteDependencies) {
               href: `/t/${encodeURIComponent(topic.slug)}/lessons/${dueLesson.number}`
             }
           : firstUnreadLesson
-          ? {
-              label: `Open lesson ${String(firstUnreadLesson.number).padStart(4, "0")}`,
-              description: firstUnreadLesson.title,
-              href: `/t/${encodeURIComponent(topic.slug)}/lessons/${firstUnreadLesson.number}`
-            }
-          : !mission?.trim()
             ? {
-                label: "Open topic overview",
-                description:
-                  "This topic needs a mission before lessons can stay grounded.",
-                href: `/t/${encodeURIComponent(topic.slug)}`
+                label: `Open lesson ${String(firstUnreadLesson.number).padStart(4, "0")}`,
+                description: firstUnreadLesson.title,
+                href: `/t/${encodeURIComponent(topic.slug)}/lessons/${firstUnreadLesson.number}`
               }
-            : {
-                label: lessons.length ? "All lessons complete" : "Generate the first lesson",
-                description: lessons.length
-                  ? "Review records or generate the next lesson when AWS is connected."
-                  : "No lesson files are indexed for this topic yet.",
-                href: lessons.length ? `/t/${encodeURIComponent(topic.slug)}/records` : null
-              }
+            : !mission?.trim()
+              ? {
+                  label: "Open topic overview",
+                  description: "This topic needs a mission before lessons can stay grounded.",
+                  href: `/t/${encodeURIComponent(topic.slug)}`
+                }
+              : {
+                  label: lessons.length ? "All lessons complete" : "Generate the first lesson",
+                  description: lessons.length
+                    ? "Review records or generate the next lesson when AWS is connected."
+                    : "No lesson files are indexed for this topic yet.",
+                  href: lessons.length ? `/t/${encodeURIComponent(topic.slug)}/records` : null
+                }
       })
     );
   });
@@ -2146,6 +2156,52 @@ export function createTopicsRoutes(dependencies: TopicsRouteDependencies) {
         ok: true,
         topicId: topic.id,
         items: dueItems
+      })
+    );
+  });
+
+  routes.put("/:id/review/:reviewItemId", async (context) => {
+    const id = parsePositiveId(context.req.param("id"));
+    const reviewItemId = parsePositiveId(context.req.param("reviewItemId"));
+    if (!id || !reviewItemId) {
+      return context.json(cleanNotFound("Review item is not indexed."), 404);
+    }
+
+    const topic = getTopic(dependencies, id);
+    if (!topic) {
+      return context.json(cleanNotFound("Topic is not indexed."), 404);
+    }
+
+    const parsed = reviewRatingRequestSchema.safeParse(await context.req.json().catch(() => ({})));
+    if (!parsed.success) {
+      return context.json(invalidBody("invalid_review_rating", zodIssues(parsed.error)), 400);
+    }
+
+    const existing = dependencies.db
+      .select()
+      .from(reviewItems)
+      .where(and(eq(reviewItems.id, reviewItemId), eq(reviewItems.topicId, topic.id)))
+      .get();
+    if (!existing) {
+      return context.json(cleanNotFound("Review item is not indexed for this topic."), 404);
+    }
+
+    const schedule = nextReviewSchedule({
+      correct: parsed.data.rating === "remembered",
+      ease: existing.ease,
+      intervalDays: existing.intervalDays
+    });
+    const item = dependencies.db
+      .update(reviewItems)
+      .set(schedule)
+      .where(eq(reviewItems.id, existing.id))
+      .returning()
+      .get();
+
+    return context.json(
+      reviewRatingResponseSchema.parse({
+        ok: true,
+        item
       })
     );
   });

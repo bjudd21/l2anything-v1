@@ -1,5 +1,5 @@
-import type { TopicReviewResponse, TopicSummary } from "@learning-hub/shared";
-import { BookOpen, ChevronDown, List } from "lucide-react";
+import type { ReviewRating, TopicReviewResponse, TopicSummary } from "@learning-hub/shared";
+import { BookOpen, CheckCircle2, ChevronDown, List, LoaderCircle, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ZapIcon } from "../components/icons.js";
 import { TopicHeader } from "../components/TopicHeader.js";
@@ -50,12 +50,14 @@ function dueState(value: string) {
 
 export function ReviewPage({
   loading,
+  onRateReview,
   onTopicTitleChange,
   review,
   route,
   topic
 }: {
   loading: boolean;
+  onRateReview: (topicId: number, reviewItemId: number, rating: ReviewRating) => Promise<void>;
   onTopicTitleChange: (topicId: number, title: string) => Promise<void>;
   review?: TopicReviewResponse;
   route: Route;
@@ -65,11 +67,14 @@ export function ReviewPage({
   const [index, setIndex] = useState(0);
   const [queueOpen, setQueueOpen] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [ratingError, setRatingError] = useState<string>();
+  const [savingRating, setSavingRating] = useState<ReviewRating>();
 
   useEffect(() => {
     setAnswer("");
     setIndex(0);
     setQueueOpen(false);
+    setRatingError(undefined);
     setRevealed(false);
   }, [topic?.id, review?.items.length]);
 
@@ -86,6 +91,25 @@ export function ReviewPage({
   const firstItem = review?.items[index];
   const dueCount = review?.items.length ?? topic.dueReviewCount;
   const activeDue = firstItem ? dueState(firstItem.dueAt) : null;
+  const saveRating = async (rating: ReviewRating) => {
+    if (!firstItem || savingRating) {
+      return;
+    }
+
+    setRatingError(undefined);
+    setSavingRating(rating);
+
+    try {
+      await onRateReview(topic.id, firstItem.id, rating);
+      setAnswer("");
+      setIndex(0);
+      setRevealed(false);
+    } catch (error) {
+      setRatingError(error instanceof Error ? error.message : "This review could not be saved.");
+    } finally {
+      setSavingRating(undefined);
+    }
+  };
 
   return (
     <div className="grid w-full min-w-0 max-w-4xl gap-5">
@@ -127,37 +151,56 @@ export function ReviewPage({
             {revealed ? (
               <InlineNotice
                 title="Check your answer"
-                body="Compare your explanation against the lesson or resource that introduced this concept, then move to the next due item."
+                body="Compare your explanation with the lesson or resource that introduced this concept, then rate what you remembered."
               />
             ) : null}
-            <div className="flex flex-wrap items-center gap-2">
-              {revealed ? (
-                <button
-                  className={button.primary}
-                  onClick={() => {
-                    const nextIndex = index + 1;
-                    setIndex(nextIndex >= (review?.items.length ?? 0) ? 0 : nextIndex);
-                    setAnswer("");
-                    setRevealed(false);
-                  }}
-                  type="button"
-                >
-                  Next concept
-                </button>
-              ) : (
-                <button
-                  className={button.primary}
-                  disabled={!answer.trim()}
-                  onClick={() => setRevealed(true)}
-                  type="button"
-                >
+            {ratingError ? (
+              <InlineNotice body={ratingError} title="Practice wasn't saved" tone="error" />
+            ) : null}
+            {revealed ? (
+              <div className="grid gap-2">
+                <span className="text-sm font-medium text-foreground">How did recall feel?</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    disabled={Boolean(savingRating)}
+                    onClick={() => void saveRating("again")}
+                    type="button"
+                    variant="outline"
+                  >
+                    {savingRating === "again" ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : (
+                      <RotateCcw />
+                    )}
+                    {savingRating === "again" ? "Saving..." : "Needs work"}
+                  </Button>
+                  <Button
+                    disabled={Boolean(savingRating)}
+                    onClick={() => void saveRating("remembered")}
+                    type="button"
+                  >
+                    {savingRating === "remembered" ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 />
+                    )}
+                    {savingRating === "remembered" ? "Saving..." : "Remembered it"}
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {index + 1} of {dueCount}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button disabled={!answer.trim()} onClick={() => setRevealed(true)} type="button">
                   Check answer
-                </button>
-              )}
-              <span className="text-sm text-muted-foreground">
-                {index + 1} of {dueCount}
-              </span>
-            </div>
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {index + 1} of {dueCount}
+                </span>
+              </div>
+            )}
           </StatusCard>
         ) : !loading ? (
           <div className={`${card} grid justify-items-center gap-3 px-6 py-10 text-center`}>

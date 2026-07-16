@@ -21,6 +21,8 @@ import {
   quizAttemptResponseSchema,
   quizGenerateRequestSchema,
   quizGenerateResponseSchema,
+  reviewRatingRequestSchema,
+  reviewRatingResponseSchema,
   settingsResponseSchema,
   settingsUpdateSchema,
   setupUpdateSchema,
@@ -62,6 +64,8 @@ import {
   type QuizAttemptResponse,
   type QuizGenerateRequest,
   type QuizGenerateResponse,
+  type ReviewRatingRequest,
+  type ReviewRatingResponse,
   type SettingsResponse,
   type SettingsUpdate,
   type SetupUpdate,
@@ -515,6 +519,18 @@ export function fetchTopicReference(topicId: number): Promise<TopicReferenceResp
 
 export function fetchTopicReview(topicId: number): Promise<TopicReviewResponse> {
   return readJson(`/api/topics/${topicId}/review`, topicReviewResponseSchema);
+}
+
+export function rateReviewItem(
+  topicId: number,
+  reviewItemId: number,
+  request: ReviewRatingRequest
+): Promise<ReviewRatingResponse> {
+  return writeJson(
+    `/api/topics/${topicId}/review/${reviewItemId}`,
+    reviewRatingRequestSchema.parse(request),
+    reviewRatingResponseSchema
+  );
 }
 
 export function generateTopicQuiz(
