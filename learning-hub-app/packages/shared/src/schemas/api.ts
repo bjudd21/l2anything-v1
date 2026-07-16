@@ -174,6 +174,11 @@ export const topicGroupResponseSchema = z.object({
   group: topicGroupSchema
 });
 
+export const topicGroupDeleteResponseSchema = z.object({
+  ok: z.literal(true),
+  groupId: z.number().int().positive()
+});
+
 export const topicStatusResponseSchema = z.object({
   ok: z.literal(true),
   topic: topicSummarySchema
@@ -428,6 +433,18 @@ export const dashboardResponseSchema = z.object({
   ok: z.literal(true),
   dueLessonCount: z.number().int().nonnegative(),
   dueReviewCount: z.number().int().nonnegative(),
+  lessonDeadlines: z.array(
+    z.object({
+      id: z.number().int().positive(),
+      topicId: z.number().int().positive(),
+      topicSlug: z.string().min(1),
+      topicTitle: z.string().min(1),
+      number: z.number().int().positive(),
+      title: z.string().min(1),
+      dueAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      href: z.string().min(1)
+    })
+  ),
   recentRecords: z.array(recordSummarySchema),
   topics: z.array(topicSummarySchema),
   nextAction: z.object({
@@ -625,6 +642,7 @@ export type LessonStatusResponse = z.infer<typeof lessonStatusResponseSchema>;
 export type LessonTitleUpdate = z.infer<typeof lessonTitleUpdateSchema>;
 export type TopicGroupAssign = z.infer<typeof topicGroupAssignSchema>;
 export type TopicGroupCreate = z.infer<typeof topicGroupCreateSchema>;
+export type TopicGroupDeleteResponse = z.infer<typeof topicGroupDeleteResponseSchema>;
 export type TopicGroupResponse = z.infer<typeof topicGroupResponseSchema>;
 export type TopicGroupUpdate = z.infer<typeof topicGroupUpdateSchema>;
 export type TopicStatusResponse = z.infer<typeof topicStatusResponseSchema>;

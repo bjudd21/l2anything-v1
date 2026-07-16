@@ -29,8 +29,7 @@ const introMessage =
   "What do you want to learn, why now, and what would count as a useful first win?";
 const readyMarkerPattern = /<READY_TO_CREATE_TOPIC\s*\/?>/i;
 const topicTitleMarkerPattern = /<TOPIC_TITLE>([\s\S]*?)<\/TOPIC_TITLE>/i;
-const controlMarkerPattern =
-  /<TOPIC_TITLE>[\s\S]*?<\/TOPIC_TITLE>|<READY_TO_CREATE_TOPIC\s*\/?>/gi;
+const controlMarkerPattern = /<TOPIC_TITLE>[\s\S]*?<\/TOPIC_TITLE>|<READY_TO_CREATE_TOPIC\s*\/?>/gi;
 const controlMarkerStartPattern = /<\s*(?:TOPIC_TITLE|READY_TO_CREATE_TOPIC)\b/i;
 
 function cleanTopicTitle(value: string | undefined) {
@@ -81,14 +80,18 @@ function shouldAutoCreate(messages: ChatViewMessage[], assistantContent: string)
 
   return Boolean(
     lastUser &&
-      isConfirmation(lastUser.content) &&
-      /ready to create the topic/i.test(assistantContent)
+    isConfirmation(lastUser.content) &&
+    /ready to create the topic/i.test(assistantContent)
   );
 }
 
 function TypingDots() {
   return (
-    <span aria-label="Tutor is thinking" className="inline-flex items-center gap-1 py-1" role="status">
+    <span
+      aria-label="Tutor is thinking"
+      className="inline-flex items-center gap-1 py-1"
+      role="status"
+    >
       <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:0ms]" />
       <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:120ms]" />
       <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:240ms]" />
@@ -179,7 +182,9 @@ export function NewTopicWizard({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const userMessages = messages.filter((message) => message.role === "user" && message.content.trim());
+  const userMessages = messages.filter(
+    (message) => message.role === "user" && message.content.trim()
+  );
   const hasDraft = draft.trim().length > 0;
   const canCreate = userMessages.length > 0 && !creating && !sending;
   const createButtonPrimary = !hasDraft && (canCreate || creating);
@@ -350,7 +355,9 @@ export function NewTopicWizard({
       .catch((cause) => {
         streamFailed = true;
         setDraft(message);
-        setError(cause instanceof Error ? cause.message : "Mission interview could not be reached.");
+        setError(
+          cause instanceof Error ? cause.message : "Mission interview could not be reached."
+        );
         finishAssistant(assistantId);
       })
       .finally(() => {
@@ -377,16 +384,22 @@ export function NewTopicWizard({
             Shape the mission with the tutor, then create the workspace when it has enough context.
           </p>
         </div>
-        <Button
-          aria-busy={creating}
-          disabled={!canCreate}
-          onClick={handleCreateTopic}
-          type="button"
-          variant={createButtonPrimary ? "default" : "secondary"}
-        >
-          {creating ? <LoaderCircle className="animate-spin" size={15} /> : <CheckCircle2 size={15} />}
-          {creating ? "Creating" : "Create topic"}
-        </Button>
+        {userMessages.length || creating ? (
+          <Button
+            aria-busy={creating}
+            disabled={!canCreate}
+            onClick={handleCreateTopic}
+            type="button"
+            variant={createButtonPrimary ? "default" : "secondary"}
+          >
+            {creating ? (
+              <LoaderCircle className="animate-spin" size={15} />
+            ) : (
+              <CheckCircle2 size={15} />
+            )}
+            {creating ? "Creating" : "Create topic"}
+          </Button>
+        ) : null}
       </header>
 
       <section
@@ -395,14 +408,15 @@ export function NewTopicWizard({
       >
         <div className="grid min-w-0 gap-2">
           <SectionHeader
-            actions={<Badge tone={interviewStatus.tone}>{interviewStatus.label}</Badge>}
+            actions={
+              userMessages.length || sending || creating ? (
+                <Badge tone={interviewStatus.tone}>{interviewStatus.label}</Badge>
+              ) : undefined
+            }
             as="h2"
             icon={<Sparkles size={17} />}
             title="Mission interview"
           />
-          <p className="break-words text-xs leading-5 text-muted-foreground">
-            Uses the same configured model path as Tutor chat.
-          </p>
         </div>
 
         <div
@@ -421,17 +435,16 @@ export function NewTopicWizard({
         </div>
 
         <div className="grid gap-3">
-          {error ? <InlineNotice tone="error" title="Mission interview needs attention" body={error} /> : null}
+          {error ? (
+            <InlineNotice tone="error" title="Mission interview needs attention" body={error} />
+          ) : null}
 
           <form
             aria-label="Mission interview composer"
             className="grid gap-2"
             onSubmit={handleSubmit}
           >
-            <label
-              className="text-sm font-medium text-foreground"
-              htmlFor="new-topic-message"
-            >
+            <label className="text-sm font-medium text-foreground" htmlFor="new-topic-message">
               Message
             </label>
             <div className="flex min-w-0 items-end gap-2">
@@ -461,7 +474,11 @@ export function NewTopicWizard({
                 type="submit"
                 variant={hasDraft ? "default" : "secondary"}
               >
-                {sending ? <LoaderCircle className="animate-spin" size={16} /> : <ArrowUp size={18} />}
+                {sending ? (
+                  <LoaderCircle className="animate-spin" size={16} />
+                ) : (
+                  <ArrowUp size={18} />
+                )}
                 <span className="sr-only">{sending ? "Sending" : "Send"}</span>
               </Button>
             </div>

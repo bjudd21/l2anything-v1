@@ -9,7 +9,9 @@ import type {
 } from "@learning-hub/shared";
 import {
   BookOpen,
+  CalendarClock,
   Check,
+  ChevronRight,
   Clock3,
   LayoutGrid,
   MoreHorizontal,
@@ -32,7 +34,6 @@ import {
   DropdownMenuTrigger,
   GradientCardCta,
   InlineNotice,
-  LessonStepper,
   SectionHeader,
   ShellSkeleton,
   StatusCard,
@@ -60,15 +61,15 @@ function orderedTopics(topics: TopicSummary[]) {
   });
 }
 
-function topicFromNextAction(
-  topics: TopicSummary[],
-  nextAction?: DashboardResponse["nextAction"]
-) {
+function topicFromNextAction(topics: TopicSummary[], nextAction?: DashboardResponse["nextAction"]) {
   if (!nextAction?.href) {
     return orderedTopics(topics)[0];
   }
 
-  return topics.find((topic) => nextAction.href?.startsWith(topicPath(topic))) ?? orderedTopics(topics)[0];
+  return (
+    topics.find((topic) => nextAction.href?.startsWith(topicPath(topic))) ??
+    orderedTopics(topics)[0]
+  );
 }
 
 function parseTopicTimestamp(value: string | null | undefined) {
@@ -84,7 +85,10 @@ function parseTopicTimestamp(value: string | null | undefined) {
 function lastActiveTopic(topics: TopicSummary[]) {
   return topics
     .filter((topic) => parseTopicTimestamp(topic.lastActiveAt) > 0)
-    .sort((left, right) => parseTopicTimestamp(right.lastActiveAt) - parseTopicTimestamp(left.lastActiveAt))[0];
+    .sort(
+      (left, right) =>
+        parseTopicTimestamp(right.lastActiveAt) - parseTopicTimestamp(left.lastActiveAt)
+    )[0];
 }
 
 function resumeTopicFor(topics: TopicSummary[], nextAction?: DashboardResponse["nextAction"]) {
@@ -153,10 +157,7 @@ function actionDetailLabel(action: ReturnType<typeof topicCta>) {
   return action.detail;
 }
 
-function topicMissionLine(
-  topic: TopicSummary,
-  nextAction?: DashboardResponse["nextAction"]
-) {
+function topicMissionLine(topic: TopicSummary, nextAction?: DashboardResponse["nextAction"]) {
   if (topic.dueReviewCount > 0) {
     return `${plural(topic.dueReviewCount, "active-recall prompt")} waiting. Start with the oldest concept before opening new material.`;
   }
@@ -270,6 +271,47 @@ function dueText(value: string) {
       new Date(dueAt)
     )}`,
     overdue: false
+  };
+}
+
+function localDateFromKey(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1);
+}
+
+function lessonDeadlineText(value: string) {
+  const dueDate = localDateFromKey(value);
+  const diffDays = Math.round((dayStart(dueDate) - dayStart(new Date())) / dayMs);
+  const dateLabel = new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
+    month: "short",
+    weekday: "short",
+    ...(dueDate.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" })
+  }).format(dueDate);
+
+  if (diffDays < 0) {
+    const days = Math.abs(diffDays);
+    return {
+      dateLabel,
+      label: `Overdue ${plural(days, "day")}`,
+      overdue: true,
+      tone: "danger" as const
+    };
+  }
+
+  if (diffDays === 0) {
+    return { dateLabel, label: "Due today", overdue: false, tone: "warning" as const };
+  }
+
+  if (diffDays === 1) {
+    return { dateLabel, label: "Due tomorrow", overdue: false, tone: "warning" as const };
+  }
+
+  return {
+    dateLabel,
+    label: `Due in ${plural(diffDays, "day")}`,
+    overdue: false,
+    tone: "neutral" as const
   };
 }
 
@@ -399,7 +441,8 @@ export function Dashboard({
       ) : resumeTopic ? (
         <>
           <ResumeHero nextAction={dashboard?.nextAction} topic={resumeTopic} />
-          <DueReviewTable reviewCache={topicReviewCache} topics={ordered} />
+          <LessonDeadlineTable deadlines={dashboard?.lessonDeadlines ?? []} />
+          <ReviewQueue reviewCache={topicReviewCache} topics={ordered} />
           <TopicGrid
             nextAction={dashboard?.nextAction}
             onDeleteTopic={onDeleteTopic}
@@ -473,8 +516,7 @@ function ResumeHero({
         </a>
       </div>
 
-      <div className="mt-7 grid min-w-0 gap-5 border-t border-border pt-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-        <LessonStepper current={topic.dueReviewCount ? "quiz" : "read"} />
+      <div className="mt-7 flex min-w-0 justify-end border-t border-border pt-5">
         <a className={`${button.primary} w-full sm:w-auto`} href={action.href}>
           <Play size={14} />
           {primaryActionLabel(action)}
@@ -484,7 +526,79 @@ function ResumeHero({
   );
 }
 
-function DueReviewTable({
+function LessonDeadlineTable({ deadlines }: { deadlines: DashboardResponse["lessonDeadlines"] }) {
+  if (!deadlines.length) {
+    return null;
+  }
+
+  return (
+    <section className="grid gap-3">
+      <SectionHeader
+        count={deadlines.length}
+        icon={<CalendarClock size={16} />}
+        title="Lesson deadlines"
+      />
+      <div className={`${card} overflow-x-auto`}>
+        <table className="w-full min-w-[680px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-[11px] font-semibold uppercase text-muted-foreground">
+              <th className="px-4 py-3">Lesson</th>
+              <th className="px-4 py-3">Topic</th>
+              <th className="px-4 py-3">Deadline</th>
+              <th className="w-14 px-4 py-3">
+                <span className="sr-only">Open lesson</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {deadlines.map((deadline) => {
+              const due = lessonDeadlineText(deadline.dueAt);
+
+              return (
+                <tr
+                  className={[
+                    "border-b border-border last:border-b-0",
+                    due.overdue ? "bg-gradient-to-r from-danger-soft/35 to-transparent" : ""
+                  ].join(" ")}
+                  key={deadline.id}
+                >
+                  <td className="px-4 py-3">
+                    <a
+                      className="font-semibold text-foreground hover:text-primary hover:underline"
+                      href={deadline.href}
+                    >
+                      {deadline.title}
+                    </a>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      Lesson {deadline.number}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{deadline.topicTitle}</td>
+                  <td className="px-4 py-3">
+                    <Badge tone={due.tone}>{due.label}</Badge>
+                    <div className="mt-1.5 text-xs text-muted-foreground">{due.dateLabel}</div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <a
+                      aria-label={`Open ${deadline.title}`}
+                      className={`${button.ghost} size-9 px-0 text-muted-foreground`}
+                      href={deadline.href}
+                      title="Open lesson"
+                    >
+                      <ChevronRight size={16} />
+                    </a>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ReviewQueue({
   reviewCache,
   topics
 }: {
@@ -493,72 +607,60 @@ function DueReviewTable({
 }) {
   const rows = reviewRows(topics, reviewCache);
 
+  if (!rows.length) {
+    return null;
+  }
+
   return (
     <section className="grid gap-3">
-      <SectionHeader
-        count={rows.length}
-        icon={<RotateCcw size={16} />}
-        title="Due for review"
-      />
-      {rows.length ? (
-        <div className={`${card} overflow-x-auto`}>
-          <table className="w-full min-w-[760px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-[11px] font-semibold uppercase text-muted-foreground">
-                <th className="px-4 py-3">Concept</th>
-                <th className="px-4 py-3">Topic</th>
-                <th className="px-4 py-3">Last reviewed</th>
-                <th className="px-4 py-3">Due</th>
-                <th className="px-4 py-3">Strength</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr
-                  className={[
-                    "cursor-pointer border-b border-border last:border-b-0 hover:bg-secondary/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
-                    row.overdue ? "bg-gradient-to-r from-danger-soft/35 to-transparent" : ""
-                  ].join(" ")}
-                  key={row.id}
-                  onClick={() => navigateTo(row.href)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      navigateTo(row.href);
-                    }
-                  }}
-                  role="link"
-                  tabIndex={0}
+      <SectionHeader count={rows.length} icon={<RotateCcw size={16} />} title="Review queue" />
+      <div className={`${card} overflow-x-auto`}>
+        <table className="w-full min-w-[760px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-[11px] font-semibold uppercase text-muted-foreground">
+              <th className="px-4 py-3">Concept</th>
+              <th className="px-4 py-3">Topic</th>
+              <th className="px-4 py-3">Last reviewed</th>
+              <th className="px-4 py-3">Due</th>
+              <th className="px-4 py-3">Strength</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr
+                className={[
+                  "cursor-pointer border-b border-border last:border-b-0 hover:bg-secondary/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
+                  row.overdue ? "bg-gradient-to-r from-danger-soft/35 to-transparent" : ""
+                ].join(" ")}
+                key={row.id}
+                onClick={() => navigateTo(row.href)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    navigateTo(row.href);
+                  }
+                }}
+                role="link"
+                tabIndex={0}
+              >
+                <td className="px-4 py-3 font-medium text-foreground">{row.concept}</td>
+                <td className="px-4 py-3 text-muted-foreground">{row.topic.title}</td>
+                <td className="px-4 py-3 text-muted-foreground">{row.lastReviewed}</td>
+                <td
+                  className={`px-4 py-3 font-semibold ${
+                    row.overdue ? "danger-readable" : "text-muted-foreground"
+                  }`}
                 >
-                  <td className="px-4 py-3 font-medium text-foreground">{row.concept}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{row.topic.title}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{row.lastReviewed}</td>
-                  <td
-                    className={`px-4 py-3 font-semibold ${
-                      row.overdue ? "danger-readable" : "text-muted-foreground"
-                    }`}
-                  >
-                    {row.due}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StrengthMeter level={row.strength} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <StatusCard className="grid justify-items-center gap-2 p-6 text-center" tone="neutral">
-          <div className="grid size-10 place-items-center rounded-md border border-success/25 bg-success-soft/55 text-success">
-            <RotateCcw size={18} />
-          </div>
-          <h3 className="font-semibold text-foreground">No reviews due</h3>
-          <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-            Finish a lesson and take its quiz to schedule future active recall.
-          </p>
-        </StatusCard>
-      )}
+                  {row.due}
+                </td>
+                <td className="px-4 py-3">
+                  <StrengthMeter level={row.strength} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -621,7 +723,9 @@ function TopicCard({
   const handleDelete = async () => {
     if (
       typeof window !== "undefined" &&
-      !window.confirm(`Delete "${topic.title}" and all of its lessons, learning records, and files?`)
+      !window.confirm(
+        `Delete "${topic.title}" and all of its lessons, learning records, and files?`
+      )
     ) {
       return;
     }

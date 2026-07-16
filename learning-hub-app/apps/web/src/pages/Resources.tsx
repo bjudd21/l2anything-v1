@@ -1,13 +1,23 @@
 import type { TopicReferenceResponse, TopicSummary } from "@learning-hub/shared";
-import { BookOpen, Library } from "lucide-react";
+import { BookMarked, BookOpen, Library } from "lucide-react";
+import { useState } from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger
+} from "@/components/ui/sheet";
 import { ExternalLinkIcon } from "../components/icons.js";
 import { MarkdownView } from "../components/markdown.js";
 import { TopicHeader } from "../components/TopicHeader.js";
 import {
-  button,
+  Button,
   card,
   InlineNotice,
   PageSkeleton,
+  Select,
   SectionHeader,
   StatusCard
 } from "../components/ui.js";
@@ -80,21 +90,25 @@ export function ResourcesPage({
   route: Route;
   topic?: TopicSummary;
 }) {
+  const [selectedFileName, setSelectedFileName] = useState<string>();
+
   if (!topic) {
     return (
       <InlineNotice tone="error" title="Topic not found" body="The requested topic is not indexed." />
     );
   }
 
-  const firstReference = reference?.references[0];
+  const referenceDocs = reference?.references ?? [];
+  const selectedReference =
+    referenceDocs.find((doc) => doc.fileName === selectedFileName) ?? referenceDocs[0];
   const curatedResourceCount = topic.resourceCount;
-  const referenceCount = reference?.references.length ?? topic.referenceCount;
+  const referenceCount = referenceDocs.length || topic.referenceCount;
   const hasCuratedResources = curatedResourceCount > 0;
   const hasReferenceDocs = referenceCount > 0;
   const resourceMarkdown = compactResourceMarkdown(reference?.resources);
 
   return (
-    <div className="grid w-full min-w-0 max-w-[1400px] gap-5">
+    <div className="mx-auto grid w-full min-w-0 max-w-6xl gap-5">
       <TopicHeader onTopicTitleChange={onTopicTitleChange} route={route} topic={topic} />
       {loading && !reference ? <PageSkeleton /> : null}
 
@@ -104,111 +118,118 @@ export function ResourcesPage({
             <div className="grid size-10 place-items-center rounded-md border border-primary/25 bg-primary-soft/55 text-primary">
               <Library size={18} />
             </div>
-            <h2 className="text-base font-bold text-foreground">No resources yet</h2>
+            <h2 className="text-base font-bold text-foreground">No study materials yet</h2>
             <p className="max-w-md text-sm leading-6 text-muted-foreground">
-              Glossaries, trusted sources, and quick reference docs appear here as lessons promote
-              reusable knowledge.
+              Reusable guides and trusted sources will collect here as you complete lessons.
             </p>
-            <a className={button.primary} href={topicPath(topic, "lessons")}>
-              <BookOpen size={14} />
-              Open lessons
-            </a>
+            <Button asChild>
+              <a href={topicPath(topic, "lessons")}>
+                <BookOpen size={14} />
+                Open lessons
+              </a>
+            </Button>
           </StatusCard>
         ) : (
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-            <article className={`${card} p-5`}>
-              <SectionHeader
-                count={referenceCount}
-                icon={<Library size={16} />}
-                title="Glossary and reference"
-                tone="neutral"
-              />
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Reusable glossaries, checklists, tables, and quick study pages built up across your lessons.
-              </p>
-              {reference?.references.length ? (
-                <div className="mt-3 grid gap-1.5">
-                  {reference.references.map((doc) => (
-                    <a
-                      className="group grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md border border-border/70 bg-secondary/25 px-3 py-2 text-[13px] hover:bg-secondary/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:translate-y-px"
-                      href={referenceFileUrl(topic.id, doc.fileName)}
-                      key={doc.fileName}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      <ExternalLinkIcon className="shrink-0 text-muted-foreground" size={14} />
-                      <span className="min-w-0">
-                        <span className="block truncate font-semibold text-foreground">
-                          {doc.title}
-                        </span>
-                        <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
-                          {doc.fileName}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-[11px] font-semibold text-muted-foreground group-hover:text-foreground">
-                        Open
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <InlineNotice
-                  title="No glossary docs yet"
-                  body="Glossaries and quick reference docs appear as the tutor turns lessons into reusable study pages."
+          <section className="grid gap-4">
+            <header className="flex min-w-0 flex-col gap-4 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
+                <SectionHeader
+                  icon={<Library size={16} />}
+                  title="Study library"
+                  tone="neutral"
                 />
-              )}
-            </article>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Reusable guides for reviewing the ideas and vocabulary from your lessons.
+                </p>
+              </div>
 
-            <aside className={`${card} grid h-fit content-start gap-3 p-5`}>
-              <SectionHeader
-                count={curatedResourceCount}
-                icon={<Library size={16} />}
-                title="Sources"
-                tone="neutral"
-              />
-              <p className="text-sm leading-6 text-muted-foreground">
-                The trusted references your lessons cite from.
-              </p>
               {hasCuratedResources ? (
-                <MarkdownView content={resourceMarkdown} empty="No sources saved yet." />
-              ) : (
-                <InlineNotice
-                  title="No sources saved yet"
-                  body="Lesson citations stay inside each lesson until the tutor promotes one here."
-                />
-              )}
-            </aside>
-
-            {firstReference ? (
-              <section className={`${card} overflow-hidden lg:col-span-2`}>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-bold">Preview</h2>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {firstReference.title}
-                    </p>
-                  </div>
-                  <a
-                    className={`${button.secondary} min-h-8 px-2.5 text-xs`}
-                    href={referenceFileUrl(topic.id, firstReference.fileName)}
-                    rel="noreferrer"
-                    target="_blank"
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button className="w-full sm:w-auto" variant="secondary">
+                      <BookMarked size={14} />
+                      View sources
+                      <span className="tnum text-xs text-muted-foreground">
+                        {curatedResourceCount}
+                      </span>
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent
+                    className="w-[min(100vw,38rem)] max-w-full gap-0 border-border bg-background/96 p-0 sm:max-w-[38rem]"
+                    side="right"
                   >
-                    <ExternalLinkIcon size={13} />
-                    Open
-                  </a>
+                    <SheetHeader className="border-b border-border px-5 py-4 pr-12">
+                      <SheetTitle>Lesson sources</SheetTitle>
+                      <SheetDescription>
+                        Trusted material used to ground this topic&apos;s lessons and study guides.
+                      </SheetDescription>
+                    </SheetHeader>
+                    <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                      <MarkdownView content={resourceMarkdown} empty="No sources saved yet." />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              ) : null}
+            </header>
+
+            {selectedReference ? (
+              <article className={`${card} min-w-0 overflow-hidden`}>
+                <div className="flex min-w-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+                      Study guide
+                    </p>
+                    <h2 className="truncate text-base font-bold text-foreground">
+                      {selectedReference.title}
+                    </h2>
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                    {referenceDocs.length > 1 ? (
+                      <Select
+                        aria-label="Choose a study guide"
+                        className="sm:w-72"
+                        onChange={(event) => setSelectedFileName(event.currentTarget.value)}
+                        value={selectedReference.fileName}
+                      >
+                        {referenceDocs.map((doc) => (
+                          <option key={doc.fileName} value={doc.fileName}>
+                            {doc.title}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : null}
+                    <Button asChild size="sm" variant="secondary">
+                      <a
+                        href={referenceFileUrl(topic.id, selectedReference.fileName)}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <ExternalLinkIcon size={13} />
+                        Open separately
+                      </a>
+                    </Button>
+                  </div>
                 </div>
-                <div className="border-t border-border bg-background/45 p-2">
-                  <iframe
-                    className="h-[min(62dvh,680px)] min-h-[30rem] w-full rounded-md border border-border bg-background"
-                    loading="lazy"
-                    sandbox="allow-scripts"
-                    src={referenceFileUrl(topic.id, firstReference.fileName)}
-                    title={firstReference.title}
-                  />
+                <iframe
+                  className="h-[min(72dvh,56rem)] min-h-[36rem] w-full border-t border-border bg-background"
+                  loading="lazy"
+                  sandbox="allow-scripts"
+                  src={referenceFileUrl(topic.id, selectedReference.fileName)}
+                  title={selectedReference.title}
+                />
+              </article>
+            ) : (
+              <StatusCard className="grid justify-items-center gap-3 px-6 py-10 text-center" tone="neutral">
+                <div className="grid size-10 place-items-center rounded-md border border-border bg-secondary/55 text-muted-foreground">
+                  <Library size={18} />
                 </div>
-              </section>
-            ) : null}
+                <h2 className="text-base font-bold text-foreground">No study guides yet</h2>
+                <p className="max-w-md text-sm leading-6 text-muted-foreground">
+                  Trusted sources are available now. A reusable guide will appear when a lesson
+                  creates one.
+                </p>
+              </StatusCard>
+            )}
           </section>
         )
       ) : null}

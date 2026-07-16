@@ -14,6 +14,7 @@ export {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+export { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -55,8 +56,7 @@ export const button = {
 
 export const field = `min-h-10 w-full min-w-0 rounded-md border border-border bg-card/45 px-3 text-[13px] text-foreground shadow-sm backdrop-blur-xl transition-colors outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`;
 
-export const card =
-  "glass-panel rounded-lg border border-border text-card-foreground";
+export const card = "glass-panel rounded-lg border border-border text-card-foreground";
 
 export const microLabel = "text-[10px] font-semibold uppercase text-muted-foreground";
 
@@ -84,7 +84,10 @@ export function ProgressRing({
   const circumference = 2 * Math.PI * radius;
 
   return (
-    <div className="relative inline-grid shrink-0 place-items-center" style={{ width: size, height: size }}>
+    <div
+      className="relative inline-grid shrink-0 place-items-center"
+      style={{ width: size, height: size }}
+    >
       <svg aria-hidden="true" className="-rotate-90" height={size} width={size}>
         <circle
           cx={size / 2}
@@ -316,23 +319,15 @@ export function SectionHeader({
 
 export type StrengthLevel = "new" | "learning" | "strong";
 
-const strengthConfig: Record<
-  StrengthLevel,
-  { filled: number; label: string; toneClass: string }
-> = {
-  learning: { filled: 2, label: "Learning", toneClass: "text-warning bg-warning" },
-  new: { filled: 1, label: "New", toneClass: "danger-readable bg-danger" },
-  strong: { filled: 3, label: "Strong", toneClass: "text-success bg-success" }
-};
+const strengthConfig: Record<StrengthLevel, { filled: number; label: string; toneClass: string }> =
+  {
+    learning: { filled: 2, label: "Learning", toneClass: "text-warning bg-warning" },
+    new: { filled: 1, label: "New", toneClass: "danger-readable bg-danger" },
+    strong: { filled: 3, label: "Strong", toneClass: "text-success bg-success" }
+  };
 
 /** Strength meter pattern from docs/design-system.md §6. */
-export function StrengthMeter({
-  className,
-  level
-}: {
-  className?: string;
-  level: StrengthLevel;
-}) {
+export function StrengthMeter({ className, level }: { className?: string; level: StrengthLevel }) {
   const config = strengthConfig[level];
   const [textClass, dotClass] = config.toneClass.split(" ");
 
@@ -341,10 +336,7 @@ export function StrengthMeter({
       <span className="inline-flex items-center gap-1" aria-hidden="true">
         {[0, 1, 2].map((dot) => (
           <span
-            className={cn(
-              "size-1.5 rounded-full",
-              dot < config.filled ? dotClass : "bg-muted"
-            )}
+            className={cn("size-1.5 rounded-full", dot < config.filled ? dotClass : "bg-muted")}
             key={dot}
           />
         ))}
@@ -470,18 +462,20 @@ export function GradientCardCta({
   );
 }
 
-/** User-action lesson stepper pattern from docs/design-system.md §7. */
+/** The actual lesson workflow: learn, check understanding, then complete. */
+export type LessonStage = "learn" | "check" | "complete";
+
 export function LessonStepper({
   className,
-  current = "read"
+  current = "learn"
 }: {
   className?: string;
-  current?: "read" | "exercise" | "quiz";
+  current?: LessonStage;
 }) {
-  const steps: Array<{ id: "read" | "exercise" | "quiz"; label: string }> = [
-    { id: "read", label: "Read the lesson" },
-    { id: "exercise", label: "Try the exercise" },
-    { id: "quiz", label: "Take the quiz" }
+  const steps: Array<{ id: LessonStage; label: string }> = [
+    { id: "learn", label: "Learn" },
+    { id: "check", label: "Check understanding" },
+    { id: "complete", label: "Complete" }
   ];
   const currentIndex = steps.findIndex((step) => step.id === current);
 

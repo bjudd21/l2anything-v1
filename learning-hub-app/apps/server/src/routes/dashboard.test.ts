@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { loadConfig } from "../config.js";
 import { createSqliteConnection } from "../db/client.js";
-import { reviewItems, topics } from "../db/schema.js";
+import { lessonsIndex, reviewItems, topics } from "../db/schema.js";
 
 const fixtureRoot = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -95,6 +95,62 @@ describe("dashboard routes", () => {
           label: "Open lesson 0001",
           href: "/t/typescript-basics/lessons/1"
         }
+      });
+    } finally {
+      connection.sqlite.close();
+    }
+  });
+
+  it("returns future lesson deadlines without counting them as due reviews", async () => {
+    const connection = createSqliteConnection();
+    const app = createApp(testConfig(), { database: connection });
+
+    try {
+      await app.request("/api/topics");
+      const topic = connection.db
+        .select()
+        .from(topics)
+        .where(eq(topics.slug, "typescript-basics"))
+        .get();
+      if (!topic) {
+        throw new Error("Fixture topic was not indexed.");
+      }
+
+      const lesson = connection.db
+        .select()
+        .from(lessonsIndex)
+        .where(eq(lessonsIndex.topicId, topic.id))
+        .all()
+        .sort((left, right) => left.number - right.number)[0];
+      if (!lesson) {
+        throw new Error("Fixture lesson was not indexed.");
+      }
+
+      connection.db
+        .update(lessonsIndex)
+        .set({ dueAt: "2099-07-17", status: "in_progress" })
+        .where(eq(lessonsIndex.id, lesson.id))
+        .run();
+
+      const response = await app.request("/api/dashboard");
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: true,
+        dueLessonCount: 0,
+        dueReviewCount: 0,
+        lessonDeadlines: [
+          {
+            id: lesson.id,
+            topicId: topic.id,
+            topicSlug: "typescript-basics",
+            topicTitle: "TypeScript Basics",
+            number: lesson.number,
+            title: lesson.title,
+            dueAt: "2099-07-17",
+            href: `/t/typescript-basics/lessons/${lesson.number}`
+          }
+        ]
       });
     } finally {
       connection.sqlite.close();

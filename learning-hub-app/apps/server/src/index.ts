@@ -29,6 +29,6 @@ serve(
     port: config.PORT
   },
   (info) => {
-    console.log(`Learning Hub server listening on http://127.0.0.1:${info.port}`);
+    console.log(`L2Anything server listening on http://127.0.0.1:${info.port}`);
   }
 );

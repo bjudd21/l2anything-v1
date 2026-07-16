@@ -16,6 +16,7 @@ import {
   topicFileResponseSchema,
   topicGroupAssignSchema,
   topicGroupCreateSchema,
+  topicGroupDeleteResponseSchema,
   topicGroupResponseSchema,
   topicGroupUpdateSchema,
   topicInterviewRequestSchema,
@@ -895,7 +896,7 @@ function usageFromEvent(
 
 function topicInterviewSystem() {
   return [
-    "You are the Learning Hub mission interviewer for a new /teach workspace.",
+    "You are the L2Anything mission interviewer for a new /teach workspace.",
     "Your job is to gather enough context to create a compact MISSION.md that can steer future lessons.",
     "Use the /teach philosophy: concrete real-world mission, success criteria, constraints, current level, zone of proximal development, and a useful first win.",
     "Ask one focused question at a time. Keep replies short and conversational.",
@@ -1425,6 +1426,32 @@ export function createTopicsRoutes(dependencies: TopicsRouteDependencies) {
       topicGroupResponseSchema.parse({
         ok: true,
         group: topicGroupSummary(updated ?? group)
+      })
+    );
+  });
+
+  routes.delete("/groups/:groupId", (context) => {
+    const groupId = parsePositiveId(context.req.param("groupId"));
+    if (!groupId) {
+      return context.json(cleanNotFound("Topic group id is invalid."), 404);
+    }
+
+    const group = dependencies.db
+      .select()
+      .from(topicGroups)
+      .where(eq(topicGroups.id, groupId))
+      .get();
+    if (!group) {
+      return context.json(cleanNotFound("Topic group is not indexed."), 404);
+    }
+
+    dependencies.db.update(topics).set({ groupId: null }).where(eq(topics.groupId, groupId)).run();
+    dependencies.db.delete(topicGroups).where(eq(topicGroups.id, groupId)).run();
+
+    return context.json(
+      topicGroupDeleteResponseSchema.parse({
+        ok: true,
+        groupId
       })
     );
   });

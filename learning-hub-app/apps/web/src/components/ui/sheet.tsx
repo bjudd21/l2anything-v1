@@ -47,20 +47,33 @@ function SheetOverlay({
 function SheetContent({
   className,
   children,
+  forceMount,
   side = "right",
   showCloseButton = true,
+  showOverlay = true,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  showOverlay?: boolean
 }) {
   return (
-    <SheetPortal>
-      <SheetOverlay />
+    <SheetPortal forceMount={forceMount}>
+      {showOverlay ? (
+        <SheetOverlay
+          className={cn(
+            forceMount &&
+              "data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0"
+          )}
+          forceMount={forceMount}
+        />
+      ) : null}
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-popover/88 shadow-2xl backdrop-blur-2xl transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
+          forceMount &&
+            "data-[state=closed]:invisible data-[state=closed]:pointer-events-none",
           side === "right" &&
             "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
           side === "left" &&
@@ -71,6 +84,7 @@ function SheetContent({
             "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
           className
         )}
+        forceMount={forceMount}
         {...props}
       >
         {children}

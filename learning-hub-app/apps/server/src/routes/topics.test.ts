@@ -223,7 +223,7 @@ describe("topics routes", () => {
       ],
       tools: []
     });
-    expect(capturedRequests[0]?.system).toContain("Learning Hub mission interviewer");
+    expect(capturedRequests[0]?.system).toContain("L2Anything mission interviewer");
     expect(capturedRequests[0]?.system).toContain("MISSION.md");
     expect(capturedRequests[0]?.system).toContain("<TOPIC_TITLE>Clean topic title</TOPIC_TITLE>");
   });
@@ -498,6 +498,23 @@ describe("topics routes", () => {
       }
     });
 
+    const groupRenameResponse = await app.request(`/api/topics/groups/${groupBody.group.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name: "Projects" }),
+      headers: {
+        "content-type": "application/json"
+      }
+    });
+
+    expect(groupRenameResponse.status).toBe(200);
+    await expect(groupRenameResponse.json()).resolves.toMatchObject({
+      ok: true,
+      group: {
+        id: groupBody.group.id,
+        name: "Projects"
+      }
+    });
+
     const collapseResponse = await app.request(`/api/topics/groups/${groupBody.group.id}`, {
       method: "PUT",
       body: JSON.stringify({ collapsed: true }),
@@ -524,7 +541,7 @@ describe("topics routes", () => {
     expect(topicsBody.groups).toEqual([
       {
         id: groupBody.group.id,
-        name: "Work",
+        name: "Projects",
         collapsed: true
       }
     ]);
@@ -541,6 +558,25 @@ describe("topics routes", () => {
         groupId: groupBody.group.id
       }
     });
+
+    const deleteGroupResponse = await app.request(`/api/topics/groups/${groupBody.group.id}`, {
+      method: "DELETE"
+    });
+
+    expect(deleteGroupResponse.status).toBe(200);
+    await expect(deleteGroupResponse.json()).resolves.toEqual({
+      ok: true,
+      groupId: groupBody.group.id
+    });
+
+    const afterDeleteResponse = await app.request("/api/topics");
+    const afterDeleteBody = (await afterDeleteResponse.json()) as {
+      groups: Array<{ id: number }>;
+      topics: Array<{ groupId: number | null; id: number }>;
+    };
+
+    expect(afterDeleteBody.groups).toEqual([]);
+    expect(afterDeleteBody.topics.find((topic) => topic.id === topicId)?.groupId).toBeNull();
     expect(hashDirectory(root)).toBe(beforeHash);
   });
 

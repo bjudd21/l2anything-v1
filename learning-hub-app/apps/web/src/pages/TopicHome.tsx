@@ -1,23 +1,19 @@
 import type {
   AwsStatusResponse,
-  LessonStatus,
   TopicDetailResponse,
   TopicLessonsResponse,
   TopicSummary
 } from "@learning-hub/shared";
 import { GenerationProgress } from "../components/GenerationProgress.js";
 import { FileTextIcon, PlayIcon, SparklesIcon } from "../components/icons.js";
-import { LessonCompletionControl } from "../components/LessonCompletionControl.js";
 import { MarkdownView } from "../components/markdown.js";
 import { TopicHeader } from "../components/TopicHeader.js";
 import {
   button,
   card,
   InlineNotice,
-  LessonStepper,
   PageSkeleton,
   SectionHeader,
-  Stat,
   StatusCard
 } from "../components/ui.js";
 import { type LessonGenerationState, topicPath, type Route } from "../lib.js";
@@ -29,7 +25,6 @@ export function TopicHome({
   lessons,
   loading,
   onGenerateLesson,
-  onStatusChange,
   onTopicTitleChange,
   route,
   topic
@@ -40,7 +35,6 @@ export function TopicHome({
   lessons?: TopicLessonsResponse;
   loading: boolean;
   onGenerateLesson: (topicId: number) => void;
-  onStatusChange: (topicId: number, lessonNumber: number, status: LessonStatus) => void;
   onTopicTitleChange: (topicId: number, title: string) => Promise<void>;
   route: Route;
   topic?: TopicSummary;
@@ -68,9 +62,15 @@ export function TopicHome({
     : (detail?.counts.completedLessons ?? topic.completedLessonCount);
   const lessonSequenceReady =
     lessonCount === 0 || (lessonCount > 0 && completedLessonCount >= lessonCount);
-  const canGenerateLesson = !lessonUnderConstruction && awsReady && lessonSequenceReady;
   const showGenerateLesson = !lessonUnderConstruction && lessonSequenceReady;
   const generateLabel = lessonCount === 0 ? "Generate first lesson" : "Generate next lesson";
+  const pendingLessonHref =
+    currentLesson || completedLessonCount < lessonCount ? detail?.nextAction.href : null;
+  const nextActionLabel =
+    currentLesson?.status === "in_progress" || detail?.nextAction.label.startsWith("Finish")
+      ? "Continue lesson"
+      : "Start lesson";
+  const nextActionDescription = currentLesson?.title ?? detail?.nextAction.description;
   const runningActivity = [...lessonGeneration.activities]
     .reverse()
     .find((activity) => activity.status === "running");
@@ -123,73 +123,45 @@ export function TopicHome({
               empty="No mission file is available for this topic."
             />
           </div>
-          <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4">
-            <Stat
-              label="Lessons completed"
-              value={
-                <span className="inline-flex items-baseline gap-1">
-                  <span className="tnum">{completedLessonCount}</span>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    of {lessonCount} generated
-                  </span>
-                </span>
-              }
-            />
-            <Stat label="Learning records" value={detail?.counts.records ?? topic.recordCount} />
-            <Stat label="Sources" value={detail?.counts.resources ?? topic.resourceCount} />
-            <Stat label="References" value={detail?.counts.references ?? 0} />
-          </dl>
         </div>
 
         <StatusCard className="grid content-start gap-4 p-5" tone="accent">
           <div>
-            <SectionHeader icon={<PlayIcon size={16} />} title="Up next" />
+            <SectionHeader icon={<PlayIcon size={16} />} title="Next step" />
             <p className="mt-1 text-[13px] leading-6 text-muted-foreground">
-              {detail?.nextAction.description ??
-                "Open a lesson or generate a new lesson after AWS connects."}
+              {pendingLessonHref
+                ? nextActionDescription
+                : lessonCount > 0
+                  ? "You finished every generated lesson. Continue when you are ready."
+                  : "Create the first guided lesson from this mission."}
             </p>
           </div>
           <div className="grid gap-2.5">
-            {detail?.nextAction.href ? (
-              <a className={button.primary} href={detail.nextAction.href}>
+            {pendingLessonHref ? (
+              <a className={button.primary} href={pendingLessonHref}>
                 <PlayIcon size={14} />
-                {detail.nextAction.label}
+                {nextActionLabel}
               </a>
             ) : null}
             {showGenerateLesson ? (
-              <button
-                className={detail?.nextAction.href ? button.secondary : button.primary}
-                disabled={!canGenerateLesson}
-                onClick={() => onGenerateLesson(topic.id)}
-                title={awsReady ? generateLabel : "AWS credentials are required"}
-                type="button"
-              >
-                <SparklesIcon size={14} />
-                {generateLabel}
-              </button>
-            ) : null}
-            {currentLesson ? (
-              <section className="grid gap-3 rounded-md border border-border bg-background/45 p-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase text-muted-foreground">
-                    Current lesson
-                  </p>
-                  <h3 className="truncate text-sm font-semibold text-foreground">
-                    {currentLesson.title}
-                  </h3>
-                  <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-                    {currentLesson.fileName}
-                  </p>
-                </div>
-                <LessonStepper current={currentLesson.status === "completed" ? "quiz" : "read"} />
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <LessonCompletionControl
-                    lesson={currentLesson}
-                    onStatusChange={onStatusChange}
-                    topicId={topic.id}
-                  />
-                </div>
-              </section>
+              !awsStatus ? (
+                <button className={button.primary} disabled type="button">
+                  Checking AWS connection
+                </button>
+              ) : awsReady ? (
+                <button
+                  className={button.primary}
+                  onClick={() => onGenerateLesson(topic.id)}
+                  type="button"
+                >
+                  <SparklesIcon size={14} />
+                  {generateLabel}
+                </button>
+              ) : (
+                <a className={button.primary} href="/settings">
+                  Connect AWS to continue
+                </a>
+              )
             ) : null}
             {lessonGeneration.error ? (
               <InlineNotice
@@ -217,14 +189,14 @@ export function TopicHome({
         </StatusCard>
       </section>
 
-      <section className={`${card} p-5`}>
-        <SectionHeader
-          count={detail?.recentRecords.length ?? 0}
-          icon={<FileTextIcon size={16} />}
-          title="Recent learning records"
-          tone="neutral"
-        />
-        {detail?.recentRecords.length ? (
+      {detail?.recentRecords.length ? (
+        <section className={`${card} p-5`}>
+          <SectionHeader
+            count={detail.recentRecords.length}
+            icon={<FileTextIcon size={16} />}
+            title="Recent tutor memory"
+            tone="neutral"
+          />
           <div className="mt-3 grid gap-1.5">
             {detail.recentRecords.map((record) => (
               <a
@@ -240,13 +212,8 @@ export function TopicHome({
               </a>
             ))}
           </div>
-        ) : (
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            No learning records yet. They appear as the tutor captures what changed in your
-            understanding.
-          </p>
-        )}
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }
