@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Read an Auth Failure</title>
+  </head>
+  <body>
+    <main>
+      <h1>Read an Auth Failure</h1>
+      <p>
+        An auth failure is not one problem. It can mean no credentials, expired SSO, missing model
+        access, or a blocked action.
+      </p>
+
+      <section>
+        <h2>PowerShell checks</h2>
+        <pre><code class="language-powershell">$env:AWS_PROFILE = "learning-dev"
+aws sts get-caller-identity --profile $env:AWS_PROFILE
+aws bedrock list-foundation-models --region us-east-2 --profile $env:AWS_PROFILE</code></pre>
+      </section>
+
+      <section>
+        <h2>Interpretation</h2>
+        <ul>
+          <li>No caller identity means credentials or SSO session.</li>
+          <li>Caller identity works but Bedrock fails means permissions, region, or model access.</li>
+          <li>Streaming starts then fails means provider request shape or model routing.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

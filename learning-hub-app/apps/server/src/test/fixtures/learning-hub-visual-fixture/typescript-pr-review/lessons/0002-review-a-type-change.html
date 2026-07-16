@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Review a Type Change</title>
+  </head>
+  <body>
+    <main>
+      <h1>Review a Type Change</h1>
+      <p>
+        Type diffs often look harmless because they do not move runtime code. They still change the
+        contract other code believes.
+      </p>
+
+      <section>
+        <h2>Before and after</h2>
+        <pre><code class="language-ts">// Before
+type Invoice = {
+  id: string;
+  paidAt: string | null;
+};
+
+// After
+type Invoice = {
+  id: string;
+  paidAt?: string;
+};</code></pre>
+        <p>
+          The new shape has three states: present string, missing property, and possibly undefined.
+          If callers used <code>null</code> as a meaningful state, the change needs a migration.
+        </p>
+      </section>
+
+      <section>
+        <h2>Checklist</h2>
+        <ul>
+          <li>What states did the old type allow?</li>
+          <li>What states does the new type allow?</li>
+          <li>Do serializers, API clients, and database rows agree?</li>
+          <li>Is there a test that covers the old edge case?</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

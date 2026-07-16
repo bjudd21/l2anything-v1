@@ -1,0 +1,61 @@
+{
+  "description": "Synthetic SQLite review queue state for the repo-local L2Anything workspace.",
+  "topics": [
+    {
+      "topicSlug": "bedrock-local-operations",
+      "lastActiveOffsetDays": 0
+    },
+    {
+      "topicSlug": "react-dashboard-polish",
+      "lastActiveOffsetDays": 1
+    },
+    {
+      "topicSlug": "typescript-pr-review",
+      "lastActiveOffsetDays": 3
+    }
+  ],
+  "items": [
+    {
+      "topicSlug": "bedrock-local-operations",
+      "concept": "Distinguish SSO session expiry from model access errors",
+      "ease": 1.8,
+      "intervalDays": 1,
+      "dueOffsetDays": -2
+    },
+    {
+      "topicSlug": "bedrock-local-operations",
+      "concept": "Run a local smoke test without touching real learner data",
+      "ease": 2.2,
+      "intervalDays": 3,
+      "dueOffsetDays": 0
+    },
+    {
+      "topicSlug": "react-dashboard-polish",
+      "concept": "Use one primary action to anchor a dashboard",
+      "ease": 2.4,
+      "intervalDays": 3,
+      "dueOffsetDays": -1
+    },
+    {
+      "topicSlug": "react-dashboard-polish",
+      "concept": "Promote repeated patterns into shared primitives",
+      "ease": 2.7,
+      "intervalDays": 7,
+      "dueOffsetDays": 0
+    },
+    {
+      "topicSlug": "typescript-pr-review",
+      "concept": "Read compiler errors as contract feedback",
+      "ease": 1.7,
+      "intervalDays": 1,
+      "dueOffsetDays": -3
+    },
+    {
+      "topicSlug": "typescript-pr-review",
+      "concept": "Narrow review comments to behavior and tests",
+      "ease": 2.6,
+      "intervalDays": 10,
+      "dueOffsetDays": 0
+    }
+  ]
+}

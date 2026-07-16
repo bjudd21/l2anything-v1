@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Local Smoke Test</title>
+  </head>
+  <body>
+    <main>
+      <h1>Local Smoke Test</h1>
+      <p>
+        A good smoke test proves the app shell, fixture workspace, and route contracts without
+        needing real learner data.
+      </p>
+
+      <section>
+        <h2>Fixture run</h2>
+        <pre><code class="language-powershell">$env:LEARNING_HUB_DIR = "C:\path\to\learning-hub-visual-fixture"
+$env:AWS_PROFILE = "learning-dev"
+pnpm dev</code></pre>
+      </section>
+
+      <section>
+        <h2>What to verify</h2>
+        <ol>
+          <li>Dashboard shows multiple topics.</li>
+          <li>Lesson iframe renders code with local syntax colors.</li>
+          <li>Records and Reference tabs appear for populated topics.</li>
+          <li>Settings does not expose real secrets.</li>
+        </ol>
+      </section>
+    </main>
+  </body>
+</html>

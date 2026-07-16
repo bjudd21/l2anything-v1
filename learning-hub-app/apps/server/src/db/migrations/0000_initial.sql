@@ -1,0 +1,81 @@
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS topics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL,
+  dir_path TEXT NOT NULL,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_active_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS topics_slug_unique ON topics(slug);
+
+CREATE TABLE IF NOT EXISTS lessons_index (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  number INTEGER NOT NULL,
+  file_name TEXT NOT NULL,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status TEXT NOT NULL DEFAULT 'unread' CHECK (status IN ('unread', 'in_progress', 'completed'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS lessons_topic_file_unique ON lessons_index(topic_id, file_name);
+
+CREATE TABLE IF NOT EXISTS records_index (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  number INTEGER NOT NULL,
+  file_name TEXT NOT NULL,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS records_topic_file_unique ON records_index(topic_id, file_name);
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  lesson_id INTEGER REFERENCES lessons_index(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  content_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS quizzes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  source_lesson_id INTEGER REFERENCES lessons_index(id) ON DELETE SET NULL,
+  questions_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  quiz_id INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+  answers_json TEXT NOT NULL,
+  score REAL NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS review_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  concept TEXT NOT NULL,
+  source_record_id INTEGER REFERENCES records_index(id) ON DELETE SET NULL,
+  ease REAL NOT NULL DEFAULT 2.5,
+  interval_days INTEGER NOT NULL DEFAULT 1,
+  due_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);

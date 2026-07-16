@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Stateful Controls</title>
+  </head>
+  <body>
+    <main>
+      <h1>Stateful Controls</h1>
+      <p>
+        Controls need visible states. The user should know what is possible, what just happened,
+        and what needs attention.
+      </p>
+
+      <section>
+        <h2>React state sketch</h2>
+        <pre><code class="language-tsx">type SaveState = "idle" | "saving" | "saved" | "error";
+
+function SaveButton({ state }: { state: SaveState }) {
+  return (
+    &lt;button disabled={state === "saving"} aria-live="polite"&gt;
+      {state === "saving" ? "Saving" : "Save"}
+    &lt;/button&gt;
+  );
+}</code></pre>
+      </section>
+
+      <section>
+        <h2>Review prompt</h2>
+        <p>For every interactive control, ask: default, hover, focus, active, disabled, loading, error?</p>
+      </section>
+    </main>
+  </body>
+</html>
