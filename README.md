@@ -55,7 +55,8 @@ Then open [http://127.0.0.1:5173](http://127.0.0.1:5173). Stop the app with `Ctr
 - **AWS sign-in expired:** Use **Run AWS login** in **Settings**, or run `aws sso login --profile <profile-name>`.
 - **AWS setup fails:** Confirm the selected profile and region can use Claude Sonnet 5 with `bedrock:InvokeModelWithResponseStream`.
 - **The page does not load:** Wait for Vite at `http://127.0.0.1:5173` and the server at `http://127.0.0.1:8787`, then refresh.
-- **A port is already in use:** Stop the earlier `corepack pnpm dev` process with `Ctrl+C`.
+- **A port is already in use:** Startup names the blocked address. Stop the earlier
+  L2Anything terminal with `Ctrl+C`, then run `corepack pnpm dev` again.
 
 ## Local Data and Privacy
 

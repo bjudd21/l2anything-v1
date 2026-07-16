@@ -22,7 +22,7 @@ const app = createApp(config, {
   database: createSqliteConnection(dbPath)
 });
 
-serve(
+const server = serve(
   {
     fetch: app.fetch,
     hostname: "127.0.0.1",
@@ -32,3 +32,18 @@ serve(
     console.log(`L2Anything server listening on http://127.0.0.1:${info.port}`);
   }
 );
+
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(
+      `\nL2Anything API cannot start because http://127.0.0.1:${config.PORT} is already in use.`
+    );
+    console.error(
+      "Stop the earlier L2Anything terminal with Ctrl+C, then run corepack pnpm dev again.\n"
+    );
+    process.exit(1);
+  }
+
+  console.error(`\nL2Anything API failed to start: ${error.message}\n`);
+  process.exit(1);
+});

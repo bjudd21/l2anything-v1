@@ -9,9 +9,9 @@
     "pnpm": ">=11"
   },
   "scripts": {
-    "dev": "corepack pnpm --filter @learning-hub/shared build && corepack pnpm -r --parallel --filter @learning-hub/server --filter @learning-hub/web dev",
+    "dev": "node scripts/dev-startup.mjs check && corepack pnpm --filter @learning-hub/shared build && corepack pnpm -r --parallel --filter @learning-hub/server --filter @learning-hub/web dev",
     "seed:synthetic-review": "node apps/server/scripts/seed-synthetic-review-state.mjs",
-    "test": "corepack pnpm --filter @learning-hub/shared build && corepack pnpm -r --workspace-concurrency=1 test",
+    "test": "node --test scripts/dev-startup.test.mjs && corepack pnpm --filter @learning-hub/shared build && corepack pnpm -r --workspace-concurrency=1 test",
     "test:ui": "node scripts/ui-regression.mjs",
     "typecheck": "corepack pnpm --filter @learning-hub/shared build && corepack pnpm -r --workspace-concurrency=1 typecheck",
     "build": "corepack pnpm -r --workspace-concurrency=1 build",
