@@ -387,8 +387,8 @@ export function Dashboard({
 
       {!settings?.workspaceDir ? (
         <InlineNotice
-          body="Set the learning hub folder in Settings, then restart the dev server to index local topics."
-          title="Learning hub folder is not configured"
+          body="Restart the local server so it can create the installation workspace."
+          title="Workspace location is unavailable"
         />
       ) : null}
 

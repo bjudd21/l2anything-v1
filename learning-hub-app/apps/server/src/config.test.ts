@@ -18,7 +18,7 @@ describe("loadConfig", () => {
 
     expect(config).toMatchObject({
       AWS_REGION: "us-east-2",
-      DEFAULT_PROVIDER: "bedrock-mantle",
+      DEFAULT_PROVIDER: "bedrock-converse",
       CONVERSE_MODEL_ID: "us.anthropic.claude-sonnet-5",
       MANTLE_MODEL_ID: "openai.gpt-5.6-sol",
       MANTLE_BASE_URL: "https://bedrock-mantle.us-east-2.api.aws/openai/v1",

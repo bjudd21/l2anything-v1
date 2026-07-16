@@ -58,15 +58,15 @@ const topics: TopicsResponse = {
 
 const settings: SettingsResponse = {
   ok: true,
+  setupComplete: true,
   workspaceDir: "C:/learning",
   awsProfile: "learning-dev",
   awsRegion: "us-east-2",
   awsLoginCommand: "bedrock-login",
-  defaultProvider: "bedrock-mantle",
-  converseModelId: null,
+  defaultProvider: "bedrock-converse",
+  converseModelId: "us.anthropic.claude-sonnet-5",
   mantleModelId: "openai.gpt-5.6-sol",
-  mantleBaseUrl: "https://bedrock-mantle.us-east-2.api.aws/openai/v1",
-  tavilyConfigured: false
+  mantleBaseUrl: "https://bedrock-mantle.us-east-2.api.aws/openai/v1"
 };
 
 const awsOk: AwsStatusResponse = {
@@ -417,17 +417,40 @@ describe("App", () => {
       />
     );
 
-    expect(html).toContain("Local setup");
+    expect(html).toContain("AWS connection and model routing");
     expect(html).toContain("AWS credentials missing");
     expect(html).toContain("Run AWS login");
-    expect(html).toContain("Learning workspace");
+    expect(html).toContain("Change profile");
     expect(html).toContain("Advanced model routing");
     expect(html).not.toContain("Refresh models");
     expect(html).not.toContain("Bedrock model list");
-    expect(html).toContain("Bedrock Mantle model");
-    expect(html).toContain("openai.gpt-5.6-sol");
-    expect(html).not.toContain("Bedrock Converse model");
+    expect(html).toContain("us.anthropic.claude-sonnet-5");
+    expect(html).toContain("Sonnet 5 is used automatically");
+    expect(html).not.toContain("Bedrock Mantle model");
     expect(html).toContain("Save advanced settings");
+  });
+
+  it("shows first-run setup before the application shell", () => {
+    const html = renderToString(
+      <App
+        initialPath="/"
+        initialSettings={{
+          ...settings,
+          setupComplete: false,
+          workspaceDir: "C:/L2Anything/local-learning-hub",
+          awsProfile: null
+        }}
+      />
+    );
+
+    expect(html).toContain("Connect your AWS account");
+    expect(html).toContain("C:/L2Anything/local-learning-hub");
+    expect(html).toContain("Create a new SSO profile");
+    expect(html).toContain("Claude Sonnet 5");
+    expect(html).toContain("Sign in with AWS");
+    expect(html).toContain("Setup verifies identity and Bedrock Converse access");
+    expect(html).toContain("Save and open L2Anything");
+    expect(html).not.toContain("Dashboard");
   });
 
   it("shows the Bedrock Mantle model field only for the Mantle provider", () => {

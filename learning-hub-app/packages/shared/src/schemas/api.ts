@@ -439,6 +439,7 @@ export const dashboardResponseSchema = z.object({
 
 export const settingsResponseSchema = z.object({
   ok: z.literal(true),
+  setupComplete: z.boolean(),
   workspaceDir: z.string().nullable(),
   awsProfile: z.string().nullable(),
   awsRegion: z.string().min(1),
@@ -446,8 +447,7 @@ export const settingsResponseSchema = z.object({
   defaultProvider: providerSchema,
   converseModelId: z.string().nullable(),
   mantleModelId: z.string().min(1),
-  mantleBaseUrl: z.string().url(),
-  tavilyConfigured: z.boolean()
+  mantleBaseUrl: z.string().url()
 });
 
 export const settingsUpdateSchema = z
@@ -458,12 +458,78 @@ export const settingsUpdateSchema = z
   })
   .strict();
 
+export const setupUpdateSchema = z
+  .object({
+    awsProfile: z
+      .string()
+      .trim()
+      .max(128)
+      .regex(/^[A-Za-z0-9_+=,.@-]*$/, "Use a valid AWS profile name."),
+    awsRegion: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9-]+$/, "Use a valid AWS region.")
+  })
+  .strict();
+
 export const awsModelSchema = z.object({
   modelId: z.string().min(1),
   modelName: z.string().min(1).nullable(),
   providerName: z.string().min(1).nullable(),
   inputModalities: z.array(z.string().min(1)),
   outputModalities: z.array(z.string().min(1))
+});
+
+export const awsProfileSchema = z.object({
+  name: z.string().min(1),
+  region: z.string().min(1).nullable()
+});
+
+export const awsProfilesResponseSchema = z.discriminatedUnion("ok", [
+  z.object({
+    ok: z.literal(true),
+    profiles: z.array(awsProfileSchema)
+  }),
+  z.object({
+    ok: z.literal(false),
+    message: z.string().min(1)
+  })
+]);
+
+export const awsProfileCreateSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9_+=,.@-]+$/, "Use a valid AWS profile name."),
+    ssoStartUrl: z.string().trim().url().startsWith("https://"),
+    ssoRegion: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9-]+$/, "Use a valid SSO region."),
+    accountId: z
+      .string()
+      .trim()
+      .regex(/^\d{12}$/, "Use a 12-digit AWS account ID."),
+    roleName: z.string().trim().min(1).max(128),
+    region: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9-]+$/, "Use a valid AWS region.")
+  })
+  .strict();
+
+export const awsProfileCreateResponseSchema = z.object({
+  ok: z.literal(true),
+  profile: awsProfileSchema
 });
 
 export const awsStatusOkSchema = z.object({
@@ -525,6 +591,17 @@ export const awsLoginResponseSchema = z.discriminatedUnion("ok", [
   awsLoginErrorSchema
 ]);
 
+export const awsLoginRequestSchema = z
+  .object({
+    profile: z
+      .string()
+      .trim()
+      .max(128)
+      .regex(/^[A-Za-z0-9_+=,.@-]*$/, "Use a valid AWS profile name.")
+      .optional()
+  })
+  .strict();
+
 export type ProviderId = z.infer<typeof providerSchema>;
 export type TopicSummary = z.infer<typeof topicSummarySchema>;
 export type TopicGroup = z.infer<typeof topicGroupSchema>;
@@ -575,9 +652,15 @@ export type QuizQuestion = z.infer<typeof quizQuestionSchema>;
 export type ReviewItem = z.infer<typeof reviewItemSchema>;
 export type SettingsResponse = z.infer<typeof settingsResponseSchema>;
 export type SettingsUpdate = z.infer<typeof settingsUpdateSchema>;
+export type SetupUpdate = z.infer<typeof setupUpdateSchema>;
 export type TopicReviewResponse = z.infer<typeof topicReviewResponseSchema>;
 export type AwsCredentialReason = z.infer<typeof awsCredentialReasonSchema>;
 export type AwsModel = z.infer<typeof awsModelSchema>;
 export type AwsStatusResponse = z.infer<typeof awsStatusResponseSchema>;
 export type AwsModelsResponse = z.infer<typeof awsModelsResponseSchema>;
+export type AwsLoginRequest = z.infer<typeof awsLoginRequestSchema>;
 export type AwsLoginResponse = z.infer<typeof awsLoginResponseSchema>;
+export type AwsProfile = z.infer<typeof awsProfileSchema>;
+export type AwsProfilesResponse = z.infer<typeof awsProfilesResponseSchema>;
+export type AwsProfileCreate = z.infer<typeof awsProfileCreateSchema>;
+export type AwsProfileCreateResponse = z.infer<typeof awsProfileCreateResponseSchema>;

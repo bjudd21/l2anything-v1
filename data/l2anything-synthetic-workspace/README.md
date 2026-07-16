@@ -2,13 +2,9 @@
 
 Synthetic workspace data for local UI, route, and visual-regression testing.
 
-Use this directory as `LEARNING_HUB_DIR` when you want a populated L2Anything workspace without touching a real learning workspace:
-
-```powershell
-$env:LEARNING_HUB_DIR="<repo>\data\l2anything-synthetic-workspace"
-$env:DB_PATH="<repo>\data\l2anything-dev.sqlite"
-corepack pnpm dev
-```
+To use the fixture, copy its topic folders into
+`learning-hub-app/local-learning-hub`, then start the app. L2Anything creates that destination
+automatically and indexes the copied topics.
 
 What this fixture seeds:
 
@@ -25,7 +21,8 @@ What this fixture does not seed:
 - Review queue items
 - Topic groups
 
-Those are SQLite application state, not workspace files. To seed due review rows for local visual testing, run:
+Those are SQLite application state, not workspace files. To seed due review rows for local visual
+testing, start the app once and then run this from `learning-hub-app`:
 
 ```powershell
 corepack pnpm seed:synthetic-review

@@ -1,8 +1,26 @@
 import type { LessonSummary } from "@learning-hub/shared";
 import { CalendarDays, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { formatDueDate, lessonDueText, todayDateValue } from "../lib.js";
 import { button, field } from "./ui.js";
+
+export function openDatePicker(input: HTMLInputElement | null) {
+  if (!input) {
+    return;
+  }
+
+  if (typeof input.showPicker === "function") {
+    try {
+      input.showPicker();
+      return;
+    } catch {
+      // Fall back for browsers that expose showPicker but reject the call.
+    }
+  }
+
+  input.focus();
+  input.click();
+}
 
 export function LessonDueDateControl({
   className = "",
@@ -23,6 +41,7 @@ export function LessonDueDateControl({
   ) => Promise<void>;
   topicId: number;
 }) {
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -54,26 +73,33 @@ export function LessonDueDateControl({
 
     return (
       <div className={`flex min-w-0 items-center gap-1.5 ${className}`}>
-        <label
-          className={`relative inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-md border border-border bg-card/38 px-2.5 text-xs font-semibold shadow-none transition-colors hover:bg-secondary/65 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/25 ${
-            saving ? "opacity-70" : ""
-          }`}
-          title={lessonDueText(lesson)}
-        >
-          <span className="sr-only">Finish by</span>
-          <CalendarDays aria-hidden="true" className={`shrink-0 ${dateState}`} size={13} />
-          <span className={`min-w-0 truncate ${dateState}`}>{label}</span>
+        <span className="relative inline-flex min-w-0 max-w-full">
+          <button
+            aria-label={`Set finish date for ${lesson.title}`}
+            className={`inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-md border border-border bg-card/38 px-2.5 text-xs font-semibold shadow-none transition-colors hover:bg-secondary/65 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25 ${
+              saving ? "opacity-70" : ""
+            }`}
+            disabled={saving}
+            onClick={() => openDatePicker(dateInputRef.current)}
+            title={lessonDueText(lesson)}
+            type="button"
+          >
+            <CalendarDays aria-hidden="true" className={`shrink-0 ${dateState}`} size={13} />
+            <span className={`min-w-0 truncate ${dateState}`}>{label}</span>
+          </button>
           <input
             aria-label={`Finish ${lesson.title} by`}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+            className="pointer-events-none absolute bottom-0 left-1/2 size-px opacity-0"
             disabled={saving}
             onChange={(event) => {
               void saveDueDate(event.currentTarget.value || null);
             }}
+            ref={dateInputRef}
+            tabIndex={-1}
             type="date"
             value={lesson.dueAt ?? ""}
           />
-        </label>
+        </span>
         {lesson.dueAt ? (
           <button
             aria-label={`Clear finish date for ${lesson.title}`}

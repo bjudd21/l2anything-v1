@@ -1,4 +1,5 @@
 import {
+  awsLoginRequestSchema,
   awsStatusResponseSchema,
   lessonDeleteResponseSchema,
   lessonGroupAssignSchema,
@@ -6,6 +7,9 @@ import {
   lessonGroupResponseSchema,
   awsLoginResponseSchema,
   awsModelsResponseSchema,
+  awsProfileCreateResponseSchema,
+  awsProfileCreateSchema,
+  awsProfilesResponseSchema,
   chatHistoryResponseSchema,
   chatRequestSchema,
   chatStreamEventSchema,
@@ -17,6 +21,7 @@ import {
   quizGenerateResponseSchema,
   settingsResponseSchema,
   settingsUpdateSchema,
+  setupUpdateSchema,
   topicCreateRequestSchema,
   topicDeleteResponseSchema,
   topicReviewResponseSchema,
@@ -39,6 +44,9 @@ import {
   type LessonGroupResponse,
   type AwsLoginResponse,
   type AwsModelsResponse,
+  type AwsProfileCreate,
+  type AwsProfileCreateResponse,
+  type AwsProfilesResponse,
   type ChatHistoryResponse,
   type ChatRequest,
   type ChatStreamEvent,
@@ -51,6 +59,7 @@ import {
   type QuizGenerateResponse,
   type SettingsResponse,
   type SettingsUpdate,
+  type SetupUpdate,
   type TopicDetailResponse,
   type TopicCreateRequest,
   type TopicDeleteResponse,
@@ -72,6 +81,26 @@ interface JsonSchema<T> {
   parse(value: unknown): T;
 }
 
+async function responseError(response: Response, path: string) {
+  let message = `Request failed: ${path}`;
+
+  try {
+    const payload = (await response.json()) as {
+      issues?: Array<{ message?: unknown }>;
+      message?: unknown;
+    };
+    if (typeof payload.message === "string") {
+      message = payload.message;
+    } else if (typeof payload.issues?.[0]?.message === "string") {
+      message = payload.issues[0].message;
+    }
+  } catch {
+    // Keep the request path when the server did not return a JSON error.
+  }
+
+  return new Error(message);
+}
+
 async function readJson<T>(path: string, schema: JsonSchema<T>) {
   const response = await fetch(path, {
     headers: {
@@ -80,7 +109,7 @@ async function readJson<T>(path: string, schema: JsonSchema<T>) {
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${path}`);
+    throw await responseError(response, path);
   }
 
   return schema.parse(await response.json());
@@ -110,7 +139,7 @@ async function writeJsonWithMethod<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${path}`);
+    throw await responseError(response, path);
   }
 
   return schema.parse(await response.json());
@@ -204,7 +233,31 @@ export function fetchAwsModels(): Promise<AwsModelsResponse> {
   return readJson("/api/aws/models", awsModelsResponseSchema);
 }
 
-export function runAwsLogin(): Promise<AwsLoginResponse> {
+export function fetchAwsProfiles(): Promise<AwsProfilesResponse> {
+  return readJson("/api/aws/profiles", awsProfilesResponseSchema);
+}
+
+export async function createAwsProfile(
+  request: AwsProfileCreate
+): Promise<AwsProfileCreateResponse> {
+  const response = await fetch("/api/aws/profiles", {
+    method: "PUT",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      "x-learning-hub-action": "write-aws-profile"
+    },
+    body: JSON.stringify(awsProfileCreateSchema.parse(request))
+  });
+
+  if (!response.ok) {
+    throw await responseError(response, "/api/aws/profiles");
+  }
+
+  return awsProfileCreateResponseSchema.parse(await response.json());
+}
+
+export function runAwsLogin(profile?: string): Promise<AwsLoginResponse> {
   return fetch("/api/aws/login", {
     method: "POST",
     headers: {
@@ -212,7 +265,7 @@ export function runAwsLogin(): Promise<AwsLoginResponse> {
       "content-type": "application/json",
       "x-learning-hub-action": "aws-login"
     },
-    body: "{}"
+    body: JSON.stringify(awsLoginRequestSchema.parse(profile === undefined ? {} : { profile }))
   }).then(async (response) => {
     if (!response.ok) {
       throw new Error("AWS login command could not be started.");
@@ -224,6 +277,10 @@ export function runAwsLogin(): Promise<AwsLoginResponse> {
 
 export function saveSettings(update: SettingsUpdate): Promise<SettingsResponse> {
   return writeJson("/api/settings", settingsUpdateSchema.parse(update), settingsResponseSchema);
+}
+
+export function saveSetup(update: SetupUpdate): Promise<SettingsResponse> {
+  return writeJson("/api/settings/setup", setupUpdateSchema.parse(update), settingsResponseSchema);
 }
 
 export function fetchTopicChatHistory(
@@ -497,10 +554,7 @@ export function updateLessonGroup(
   );
 }
 
-export function deleteLesson(
-  topicId: number,
-  lessonNumber: number
-): Promise<LessonDeleteResponse> {
+export function deleteLesson(topicId: number, lessonNumber: number): Promise<LessonDeleteResponse> {
   return fetch(`/api/topics/${topicId}/lessons/${lessonNumber}`, {
     method: "DELETE",
     headers: {

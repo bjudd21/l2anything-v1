@@ -4,6 +4,7 @@ import type {
   LessonStatus,
   SettingsResponse,
   SettingsUpdate,
+  SetupUpdate,
   TopicDetailResponse,
   TopicGroup,
   TopicLessonsResponse,
@@ -38,6 +39,7 @@ import {
   generateTopicQuiz,
   runAwsLogin,
   saveSettings,
+  saveSetup,
   streamTopicLessonGeneration,
   updateLessonDueDate,
   updateLessonTitle,
@@ -71,6 +73,7 @@ import { RecordsPage } from "./pages/Records.js";
 import { ResourcesPage } from "./pages/Resources.js";
 import { ReviewPage } from "./pages/Review.js";
 import { SettingsPage } from "./pages/Settings.js";
+import { SetupPage } from "./pages/Setup.js";
 import { TopicHome } from "./pages/TopicHome.js";
 
 interface AppProps {
@@ -500,16 +503,24 @@ export function App({
       setLoadError(undefined);
 
       try {
-        const [nextTopics, nextSettings, nextAwsStatus, nextDashboard] = await Promise.all([
+        const nextSettings = await fetchSettings();
+
+        if (!cancelled) {
+          setSettings(nextSettings);
+        }
+
+        if (!nextSettings.setupComplete) {
+          return;
+        }
+
+        const [nextTopics, nextAwsStatus, nextDashboard] = await Promise.all([
           fetchTopics(),
-          fetchSettings(),
           fetchAwsStatus(),
           fetchDashboard()
         ]);
 
         if (!cancelled) {
           setTopics(nextTopics);
-          setSettings(nextSettings);
           setAwsStatus(nextAwsStatus);
           setDashboard(nextDashboard);
         }
@@ -708,6 +719,18 @@ export function App({
         setSettingsSaveStatus("saved");
       })
       .catch(() => setSettingsSaveStatus("error"));
+  };
+
+  const handleSaveSetup = async (update: SetupUpdate) => {
+    const nextSettings = await saveSetup(update);
+    const [nextTopics, nextDashboard] = await Promise.all([fetchTopics(), fetchDashboard()]);
+
+    setSettings(nextSettings);
+    setTopics(nextTopics);
+    setDashboard(nextDashboard);
+    setTopicsLoading(false);
+    navigate("/");
+    void fetchAwsStatus().then(setAwsStatus).catch(() => undefined);
   };
 
   const applyLessonUpdate = (
@@ -1231,6 +1254,30 @@ export function App({
         setContentError(error instanceof Error ? error.message : "Quiz could not be generated.");
       });
   };
+
+  if (!settings) {
+    return (
+      <main className="workspace-canvas grid min-h-dvh place-items-center px-4 text-foreground">
+        <div className="w-full max-w-md">
+          {loadError ? (
+            <InlineNotice body={loadError} title="Local API unavailable" tone="error" />
+          ) : (
+            <PageSkeleton />
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  if (!settings.setupComplete || path === "/setup") {
+    return (
+      <SetupPage
+        onCancel={settings.setupComplete ? () => navigate("/") : undefined}
+        onSave={handleSaveSetup}
+        settings={settings}
+      />
+    );
+  }
 
   return (
     <main className="min-h-dvh w-full max-w-full overflow-x-hidden bg-background text-foreground">

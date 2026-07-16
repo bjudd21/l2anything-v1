@@ -7,13 +7,16 @@ import type { ServerConfig } from "./config.js";
 import type { ChatProvider } from "./llm/types.js";
 import {
   createAwsRoutes,
+  type AwsAccessProvider,
   type AwsIdentityProvider,
   type AwsLoginRunner,
-  type AwsModelsProvider
+  type AwsModelsProvider,
+  type AwsProfilesProvider,
+  type AwsProfileWriter
 } from "./routes/aws.js";
 import { createDashboardRoutes } from "./routes/dashboard.js";
 import { createQuizRoutes } from "./routes/quizzes.js";
-import { createSettingsRoutes } from "./routes/settings.js";
+import { createSettingsRoutes, hydrateRuntimeConfig } from "./routes/settings.js";
 import { createTopicsRoutes } from "./routes/topics.js";
 
 export interface AppDatabaseConnection {
@@ -22,9 +25,12 @@ export interface AppDatabaseConnection {
 }
 
 export interface CreateAppOptions {
+  awsAccessProvider?: AwsAccessProvider;
   awsIdentityProvider?: AwsIdentityProvider;
   awsLoginRunner?: AwsLoginRunner;
   awsModelsProvider?: AwsModelsProvider;
+  awsProfilesProvider?: AwsProfilesProvider;
+  awsProfileWriter?: AwsProfileWriter;
   chatProvider?: ChatProvider;
   database?: AppDatabaseConnection;
 }
@@ -34,6 +40,7 @@ export function createApp(config: ServerConfig, options: CreateAppOptions = {}) 
   const database = options.database ?? createSqliteConnection();
 
   runMigrations(database.sqlite);
+  hydrateRuntimeConfig({ config, db: database.db });
 
   app.get("/health", (context) => {
     const response = createHealthResponse("0.0.0");
@@ -50,12 +57,16 @@ export function createApp(config: ServerConfig, options: CreateAppOptions = {}) 
       config,
       options.awsIdentityProvider,
       options.awsModelsProvider,
-      options.awsLoginRunner
+      options.awsLoginRunner,
+      options.awsProfilesProvider,
+      options.awsProfileWriter
     )
   );
   app.route(
     "/api/settings",
     createSettingsRoutes({
+      awsAccessProvider: options.awsAccessProvider,
+      awsIdentityProvider: options.awsIdentityProvider,
       config,
       db: database.db
     })

@@ -25,6 +25,7 @@ export function AwsBanner({
 
   const command = configuredAwsLoginCommand(settings, status);
   const loginRunning = loginStatus === "running";
+  const loginCanHelp = status.reason === "sso_expired" || status.reason === "no_credentials";
 
   return (
     <section
@@ -38,42 +39,53 @@ export function AwsBanner({
           <div className="min-w-0">
             <div className="font-semibold">{awsStatusText(status)}</div>
             <p className="mt-1 leading-6 text-muted-foreground">
-              Tutor actions are paused. Run
-              <code className="mx-1 mt-1 inline-block max-w-full break-all rounded-md border border-border bg-card/60 px-1.5 py-0.5 text-foreground">
-                {command}
-              </code>
-              to reconnect. Reading lessons still works.
+              {loginCanHelp ? (
+                <>
+                  Tutor actions are paused. Run
+                  <code className="mx-1 mt-1 inline-block max-w-full break-all rounded-md border border-border bg-card/60 px-1.5 py-0.5 text-foreground">
+                    {command}
+                  </code>
+                  to reconnect. Reading lessons still works.
+                </>
+              ) : (
+                <>
+                  {status.message} Tutor actions are paused until the role permissions are
+                  corrected.
+                </>
+              )}
             </p>
             {loginMessage ? (
               <p className="mt-2 text-sm font-medium text-foreground">{loginMessage}</p>
             ) : null}
           </div>
         </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          <Button
-            aria-busy={loginRunning}
-            className="w-full sm:w-auto"
-            disabled={loginRunning}
-            onClick={onAwsLogin}
-            type="button"
-            variant="secondary"
-          >
-            {loginRunning ? "Running login" : "Run login"}
-          </Button>
-          <Button
-            className="w-full sm:w-auto"
-            onClick={() => {
-              if (typeof navigator !== "undefined" && navigator.clipboard) {
-                void navigator.clipboard.writeText(command).then(() => setCopied(true));
-              }
-            }}
-            type="button"
-            variant="secondary"
-          >
-            <CopyIcon size={14} />
-            {copied ? "Copied" : "Copy command"}
-          </Button>
-        </div>
+        {loginCanHelp ? (
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button
+              aria-busy={loginRunning}
+              className="w-full sm:w-auto"
+              disabled={loginRunning}
+              onClick={onAwsLogin}
+              type="button"
+              variant="secondary"
+            >
+              {loginRunning ? "Running login" : "Run login"}
+            </Button>
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => {
+                if (typeof navigator !== "undefined" && navigator.clipboard) {
+                  void navigator.clipboard.writeText(command).then(() => setCopied(true));
+                }
+              }}
+              type="button"
+              variant="secondary"
+            >
+              <CopyIcon size={14} />
+              {copied ? "Copied" : "Copy command"}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </section>
   );

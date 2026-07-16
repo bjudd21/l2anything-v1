@@ -11,11 +11,16 @@ const serverDir = dirname(fileURLToPath(import.meta.url));
 loadDotenv({ override: true, path: resolve(serverDir, "../../../.env") });
 
 const config = loadConfig();
+const defaultWorkspaceDir = resolve(serverDir, "../../../local-learning-hub");
+config.LEARNING_HUB_DIR ??= defaultWorkspaceDir;
+mkdirSync(config.LEARNING_HUB_DIR, { recursive: true });
 // Persist app state (settings, lesson status, review schedule) across restarts.
 // Tests keep using in-memory databases via createApp's default.
 const dbPath = config.DB_PATH ?? resolve(serverDir, "../.data/learning-hub.sqlite");
 mkdirSync(dirname(dbPath), { recursive: true });
-const app = createApp(config, { database: createSqliteConnection(dbPath) });
+const app = createApp(config, {
+  database: createSqliteConnection(dbPath)
+});
 
 serve(
   {

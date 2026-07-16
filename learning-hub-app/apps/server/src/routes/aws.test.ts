@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { classifyAwsCredentialError } from "../aws/errors.js";
 import { createApp } from "../app.js";
 import { loadConfig } from "../config.js";
+import { writeAwsProfile } from "./aws.js";
 
 function testConfig(overrides: NodeJS.ProcessEnv = {}) {
   return loadConfig({
@@ -151,6 +152,103 @@ describe("AWS status route", () => {
     });
   });
 
+  it("lists configured AWS profiles", async () => {
+    const app = createApp(testConfig(), {
+      awsProfilesProvider: () =>
+        Promise.resolve([
+          { name: "work", region: "us-west-2" },
+          { name: "default", region: null }
+        ])
+    });
+
+    const response = await app.request("/api/aws/profiles");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      profiles: [
+        { name: "default", region: null },
+        { name: "work", region: "us-west-2" }
+      ]
+    });
+  });
+
+  it("writes an AWS SSO profile from local setup", async () => {
+    const app = createApp(testConfig(), {
+      awsProfileWriter: (profile) => Promise.resolve({ name: profile.name, region: profile.region })
+    });
+    const response = await app.request("/api/aws/profiles", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "x-learning-hub-action": "write-aws-profile"
+      },
+      body: JSON.stringify({
+        name: "l2anything",
+        ssoStartUrl: "https://example.awsapps.com/start",
+        ssoRegion: "us-east-1",
+        accountId: "123456789012",
+        roleName: "BedrockAccess",
+        region: "us-east-2"
+      })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      profile: {
+        name: "l2anything",
+        region: "us-east-2"
+      }
+    });
+  });
+
+  it("writes SSO profile fields through AWS CLI arguments", async () => {
+    const calls: string[][] = [];
+    const profile = await writeAwsProfile(
+      {
+        name: "l2anything",
+        ssoStartUrl: "https://example.awsapps.com/start",
+        ssoRegion: "us-east-1",
+        accountId: "123456789012",
+        roleName: "BedrockAccess",
+        region: "us-east-2"
+      },
+      (args) => {
+        calls.push(args);
+        return Promise.resolve({ exitCode: 0, stderr: "", stdout: "" });
+      }
+    );
+
+    expect(profile).toEqual({ name: "l2anything", region: "us-east-2" });
+    expect(calls).toEqual([
+      [
+        "configure",
+        "set",
+        "sso_start_url",
+        "https://example.awsapps.com/start",
+        "--profile",
+        "l2anything"
+      ],
+      ["configure", "set", "sso_region", "us-east-1", "--profile", "l2anything"],
+      ["configure", "set", "sso_account_id", "123456789012", "--profile", "l2anything"],
+      ["configure", "set", "sso_role_name", "BedrockAccess", "--profile", "l2anything"],
+      ["configure", "set", "region", "us-east-2", "--profile", "l2anything"],
+      ["configure", "set", "output", "json", "--profile", "l2anything"]
+    ]);
+  });
+
+  it("rejects AWS profile writes outside the local setup action", async () => {
+    const app = createApp(testConfig());
+    const response = await app.request("/api/aws/profiles", { method: "PUT" });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: "forbidden"
+    });
+  });
+
   it("runs the configured local AWS login command", async () => {
     const app = createApp(testConfig({ AWS_LOGIN_COMMAND: "bedrock-login" }), {
       awsLoginRunner: (command) =>
@@ -198,6 +296,32 @@ describe("AWS status route", () => {
       ok: true,
       command: "aws sso login --profile learning-dev",
       message: "AWS login command completed. AWS status will refresh now."
+    });
+  });
+
+  it("runs AWS SSO login for a profile selected during setup", async () => {
+    const app = createApp(testConfig({ AWS_LOGIN_COMMAND: "bedrock-login" }), {
+      awsLoginRunner: (command) =>
+        Promise.resolve({
+          exitCode: command === "aws sso login --profile setup-profile" ? 0 : 1,
+          stderr: "",
+          stdout: ""
+        })
+    });
+
+    const response = await app.request("/api/aws/login", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-learning-hub-action": "aws-login"
+      },
+      body: JSON.stringify({ profile: "setup-profile" })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      command: "aws sso login --profile setup-profile"
     });
   });
 

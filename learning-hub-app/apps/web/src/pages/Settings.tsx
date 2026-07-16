@@ -4,7 +4,7 @@ import type {
   SettingsResponse,
   SettingsUpdate
 } from "@learning-hub/shared";
-import { Cloud, FolderOpen, Route, Settings } from "lucide-react";
+import { Cloud, Pencil, Route, Settings } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { AwsBanner } from "../components/AwsBanner.js";
 import { CopyIcon } from "../components/icons.js";
@@ -170,8 +170,7 @@ export function SettingsPage({
       <header className="grid min-w-0 gap-1">
         <SectionHeader as="h1" icon={<Settings size={17} />} title="Settings" />
         <p className="max-w-2xl break-words text-sm leading-6 text-muted-foreground">
-          Local setup: the folder that holds your topic workspaces and the AWS profile used for
-          Bedrock.
+          AWS connection and model routing for your local learning workspace.
         </p>
       </header>
 
@@ -184,48 +183,25 @@ export function SettingsPage({
       />
 
       <SettingsSection
-        description="Local topic folders and optional search configuration. Secret values stay server-side."
-        icon={<FolderOpen size={16} />}
-        title="Learning workspace"
-      >
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-          <ReadOnlyField
-            className="sm:col-span-2"
-            label="Learning hub folder"
-            value={settings.workspaceDir ?? "Not configured"}
-            valueClassName="font-mono text-[13px]"
-          />
-          <ReadOnlyField
-            label="Web search (Tavily)"
-            value={
-              settings.tavilyConfigured ? (
-                <Badge tone="success">Configured</Badge>
-              ) : (
-                <Badge>Not configured</Badge>
-              )
-            }
-          />
-        </div>
-        {!settings.workspaceDir ? (
-          <InlineNotice
-            body="Set LEARNING_HUB_DIR in learning-hub-app/.env, then restart the dev server."
-            title="Learning hub folder is missing"
-          />
-        ) : null}
-      </SettingsSection>
-
-      <SettingsSection
         actions={
-          <Button
-            aria-busy={awsLoginStatus === "running"}
-            disabled={awsLoginStatus === "running"}
-            onClick={onAwsLogin}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            {awsLoginStatus === "running" ? "Running login" : "Run AWS login"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="secondary">
+              <a href="/setup">
+                <Pencil size={14} />
+                Change profile
+              </a>
+            </Button>
+            <Button
+              aria-busy={awsLoginStatus === "running"}
+              disabled={awsLoginStatus === "running"}
+              onClick={onAwsLogin}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {awsLoginStatus === "running" ? "Running login" : "Run AWS login"}
+            </Button>
+          </div>
         }
         description="The tutor uses this local AWS profile and region for Bedrock calls."
         icon={<Cloud size={16} />}
@@ -284,8 +260,8 @@ export function SettingsPage({
           />
           <Badge className="mt-2 sm:hidden">{providerLabel(defaultProvider)}</Badge>
           <p className="mt-2 max-w-3xl text-[13px] leading-6 text-muted-foreground">
-            Bedrock Mantle uses GPT-5.6 Sol with medium reasoning by default. Switch routes here
-            when you intentionally want Bedrock Converse with Sonnet 5.
+            Bedrock Converse uses Claude Sonnet 5 by default. Switch routes here only when you
+            intentionally want to use Bedrock Mantle.
           </p>
         </summary>
 
